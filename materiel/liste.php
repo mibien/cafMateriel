@@ -19,7 +19,7 @@ function construireSql(array &$params, string $typeFiltre, string $statutFiltre,
         $params[] = $typeFiltre;
     }
     if ($statutFiltre === 'emprunte') {
-        // Un lot partiellement emprunte (ex: 1 dégaine sur 28) garde le statut 'disponible'
+        // Un lot partiellement emprunte (ex: 1 degaine sur 28) garde le statut 'disponible'
         // tant qu'il en reste au moins une : on filtre donc sur les quantites, pas sur le statut brut.
         $sql .= " AND m.quantite_disponible < m.quantite_stock AND m.statut NOT IN ('hors_service', 'perdu')";
     } elseif ($statutFiltre !== '') {
@@ -45,6 +45,20 @@ $types = $pdo->query("SELECT code, libelle FROM types_epi ORDER BY libelle")->fe
 
 $dernierInventaire = $pdo->query("SELECT date_inventaire FROM inventaires ORDER BY date_inventaire DESC LIMIT 1")->fetchColumn();
 
+// Alertes a traiter
+$alertes = [];
+$alertes['revisions_proches'] = $pdo->query("
+    SELECT COUNT(*) FROM materiel
+    WHERE date_prochaine_revision IS NOT NULL
+    AND date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
+")->fetchColumn();
+
+$alertes['materiel_perdu'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'perdu'")->fetchColumn();
+
+$alertes['materiel_hors_service'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'hors_service'")->fetchColumn();
+
+$alertes['materiel_en_revision'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'en_revision'")->fetchColumn();
+
 // Construit la query string pour le lien d'export (reprend les memes filtres)
 $queryExport = http_build_query(['type' => $typeFiltre, 'statut' => $statutFiltre, 'q' => $recherche]);
 
@@ -53,6 +67,27 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <h1>Inventaire du materiel</h1>
+
+<?php if (has_min_role('responsable_materiel')): ?>
+<div class="card">
+  <h2>À traiter</h2>
+  <?php if ($alertes['revisions_proches'] > 0): ?>
+    <p class="alert warn"><?= (int)$alertes['revisions_proches'] ?> article(s) arrivent à échéance de révision dans les 60 jours.</p>
+  <?php endif; ?>
+  <?php if ($alertes['materiel_en_revision'] > 0): ?>
+    <p><?= (int)$alertes['materiel_en_revision'] ?> article(s) actuellement en révision.</p>
+  <?php endif; ?>
+  <?php if ($alertes['materiel_perdu'] > 0): ?>
+    <p class="alert err"><?= (int)$alertes['materiel_perdu'] ?> article(s) marqué(s) comme perdu.</p>
+  <?php endif; ?>
+  <?php if ($alertes['materiel_hors_service'] > 0): ?>
+    <p class="alert err"><?= (int)$alertes['materiel_hors_service'] ?> article(s) hors service.</p>
+  <?php endif; ?>
+  <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0): ?>
+    <p>Aucune alerte en cours.</p>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
   <div>

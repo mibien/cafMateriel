@@ -1,0 +1,163 @@
+:root {
+  --bleu: #1d4e6b;
+  --bleu-fonce: #123847;
+  --vert: #3a7d44;
+  --rouge: #b03a2e;
+  --gris-clair: #f4f6f7;
+  --gris: #6b7a80;
+  --bordure: #dde3e5;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--gris-clair);
+  color: #222;
+}
+
+.topbar {
+  background: var(--bleu-fonce);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.topbar a { color: white; text-decoration: none; }
+.topbar .brand { font-weight: 700; font-size: 1.1rem; }
+
+.nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nav a {
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.92rem;
+}
+.nav a:hover { background: rgba(255,255,255,0.15); }
+
+.badge-role {
+  background: var(--bleu);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+h1 { font-size: 1.5rem; color: var(--bleu-fonce); }
+h2 { font-size: 1.15rem; color: var(--bleu-fonce); margin-top: 0; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+th, td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--bordure);
+  text-align: left;
+}
+th { background: var(--gris-clair); }
+
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--bleu);
+  color: white;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+.btn:hover { background: var(--bleu-fonce); }
+.btn.rouge { background: var(--rouge); }
+.btn.vert { background: var(--vert); }
+.btn.secondaire { background: var(--gris); }
+
+.form-group { margin-bottom: 1rem; }
+label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.9rem; }
+input, select, textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+}
+.alert.ok { background: #e5f3e8; color: var(--vert); border: 1px solid var(--vert); }
+.alert.err { background: #f9e6e3; color: var(--rouge); border: 1px solid var(--rouge); }
+.alert.warn { background: #fff6e0; color: #8a6300; border: 1px solid #e0b400; }
+
+.statut-disponible { color: var(--vert); font-weight: 600; }
+.statut-emprunte { color: #b8860b; font-weight: 600; }
+.statut-en_revision { color: #b8860b; font-weight: 600; }
+.statut-hors_service, .statut-perdu { color: var(--rouge); font-weight: 600; }
+
+.login-box {
+  max-width: 380px;
+  margin: 4rem auto;
+}
+
+details.card summary { list-style: none; }
+details.card summary::-webkit-details-marker { display: none; }
+details.card summary::before { content: "▶ "; font-size: 0.8em; }
+details.card[open] summary::before { content: "▼ "; }
+
+.scroll-sync-top {
+  overflow-x: scroll;
+  overflow-y: hidden;
+  height: 16px;
+  margin-bottom: 4px;
+}
+.scroll-sync-top > div { height: 1px; }
+
+/* Force des scrollbars classiques (non "overlay") et toujours visibles,
+   pour que le glissement a la souris fonctionne sans devoir scroller la page */
+.scroll-sync-top,
+#scroll-bottom {
+  scrollbar-width: auto; /* Firefox */
+}
+.scroll-sync-top::-webkit-scrollbar,
+#scroll-bottom::-webkit-scrollbar {
+  height: 14px;
+}
+.scroll-sync-top::-webkit-scrollbar-track,
+#scroll-bottom::-webkit-scrollbar-track {
+  background: var(--gris-clair);
+}
+.scroll-sync-top::-webkit-scrollbar-thumb,
+#scroll-bottom::-webkit-scrollbar-thumb {
+  background: var(--gris);
+  border-radius: 7px;
+  border: 3px solid var(--gris-clair);
+}
+

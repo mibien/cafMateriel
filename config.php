@@ -6,8 +6,8 @@
  */
 
 // --- A ADAPTER avec tes infos OVH ---
-define('DB_HOST', 'deferlecwvmikael.mysql.db'); // ton hote MySQL OVH
-define('DB_NAME', 'deferlecwvmikael');           // nom de la base (souvent identique a l'hote)
+define('DB_HOST', 'hote.mysql.db'); // ton hote MySQL OVH
+define('DB_NAME', 'hote');           // nom de la base (souvent identique a l'hote)
 define('DB_USER', 'ton_identifiant_ovh');
 define('DB_PASS', 'ton_mot_de_passe_ovh');
 define('DB_CHARSET', 'utf8mb4');

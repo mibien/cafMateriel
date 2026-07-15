@@ -5,6 +5,12 @@ jobs:
   trigger-deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: dev  # <-- Force le checkout de la branche dev
+
       - name: Trigger deployment
         run: |
           git config --global user.name "GitHub Actions"

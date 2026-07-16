@@ -192,3 +192,4 @@ details.card[open] summary::before { content: "\25bc "; }
 .btn-piles-retirees:hover {
   background: #ddffdd;
 }
+/* Déploiement déclenché le <?php echo date('Y-m-d H:i:s'); ?> */

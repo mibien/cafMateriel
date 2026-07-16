@@ -147,7 +147,7 @@ include __DIR__ . '/../includes/header.php';
         <th>Type</th><th>Marque</th><th>Modele</th><th>N° serie</th><th>Annee fab.</th>
         <th>Date achat</th><th>1ere util.</th><th>Longueur (cm)</th><th>Diametre (mm)</th>
         <th>Date rebut</th><th>Derniere rev.</th><th>Prochaine rev.</th><th>Sac</th>
-        <th>Qte dispo / totale</th><th>Statut</th><th>Commentaire</th><th>Modifie le</th>
+        <th>Qte dispo / totale</th><th>Statut</th><th>Piles</th><th>Commentaire</th><th>Modifie le</th>
       </tr>
     </thead>
     <tbody>
@@ -168,12 +168,24 @@ include __DIR__ . '/../includes/header.php';
         <td><?= htmlspecialchars($m['sac_rangement'] ?? '-') ?></td>
         <td><?= (int)$m['quantite_disponible'] ?> / <?= (int)$m['quantite_stock'] ?></td>
         <td><span class="statut-<?= htmlspecialchars($m['statut']) ?>"><?= htmlspecialchars($m['statut']) ?></span></td>
+        <td>
+          <?php if ($m['type_code'] === 'DVA' && has_min_role('responsable_materiel')): ?>
+            <button 
+              class="btn-piles btn-piles-<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
+              data-materiel-id="<?= $m['id'] ?>"
+              data-etat-actuel="<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
+              onclick="event.stopPropagation(); togglePiles(this);"
+            >
+              <?= htmlspecialchars($m['piles'] ?? '-') ?>
+            </button>
+          <?php endif; ?>
+        </td>
         <td><?= htmlspecialchars($m['commentaire'] ?? '-') ?></td>
         <td><?= htmlspecialchars(substr($m['date_maj'], 0, 16)) ?></td>
       </tr>
       <?php endforeach; ?>
       <?php if (empty($materiel)): ?>
-        <tr><td colspan="16">Aucun materiel ne correspond a ces criteres.</td></tr>
+        <tr><td colspan="17">Aucun materiel ne correspond a ces criteres.</td></tr>
       <?php endif; ?>
     </tbody>
   </table>
@@ -191,6 +203,34 @@ include __DIR__ . '/../includes/header.php';
   top.addEventListener('scroll', () => { bottom.scrollLeft = top.scrollLeft; });
   bottom.addEventListener('scroll', () => { top.scrollLeft = bottom.scrollLeft; });
 })();
+
+// Fonction pour basculer l'état des piles des DVA
+function togglePiles(button) {
+  const materielId = button.dataset.materielId;
+  const etatActuel = button.dataset.etatActuel;
+  const nouvelEtat = etatActuel === 'mises' ? 'retirées' : 'mises';
+  
+  fetch('/materiel/toggle_piles.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'id=' + encodeURIComponent(materielId) + '&etat=' + encodeURIComponent(nouvelEtat) + '&csrf=' + encodeURIComponent('<?= csrf_token() ?>')
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      button.textContent = nouvelEtat;
+      button.dataset.etatActuel = nouvelEtat;
+      button.className = 'btn-piles btn-piles-' + nouvelEtat;
+    } else {
+      alert('Erreur : ' + (data.error || 'Impossible de mettre à jour l\'état des piles.'));
+    }
+  })
+  .catch(error => {
+    alert('Erreur réseau : ' + error.message);
+  });
+}
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -21,6 +21,17 @@ if (has_min_role('responsable_materiel')) {
     ")->fetchColumn();
 }
 
+// Vérification des DVA avec piles mises (pour l'alerte saisonnière)
+$mois_actuel = (int)date('n');
+$dva_piles_mises_count = 0;
+if ($mois_actuel >= 5) { // À partir de mai (5)
+    $dva_piles_mises_count = $pdo->query("
+        SELECT COUNT(*) FROM materiel m
+        JOIN types_epi t ON m.type_id = t.id
+        WHERE t.code = 'DVA' AND m.piles = 'mises'
+    ")->fetchColumn();
+}
+
 if (has_role('encadrant') && !has_min_role('responsable_materiel')) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM demandes_emprunt WHERE encadrant_id = ? AND statut = 'en_attente'");
     $stmt->execute([$user['id']]);
@@ -35,7 +46,8 @@ $titre_page = 'Tableau de bord';
 include __DIR__ . '/includes/header.php';
 ?>
 
-<h1>Bonjour <?= htmlspecialchars($user['prenom']) ?> 👋</h1>
+<h1>Bonjour <?= htmlspecialchars($user['prenom']) ?> 
+dc4b</h1>
 
 <div class="card">
   <h2>Inventaire</h2>
@@ -55,6 +67,13 @@ include __DIR__ . '/includes/header.php';
   <p><?= (int)$stats['emprunts_en_cours'] ?> emprunt(s) actuellement en cours (materiel sorti, non rendu).</p>
   <?php if ($stats['revisions_proches'] > 0): ?>
     <p class="alert warn"><?= (int)$stats['revisions_proches'] ?> article(s) arrivent a echeance de revision dans les 60 jours.</p>
+  <?php endif; ?>
+  <?php if ($mois_actuel >= 5 && $dva_piles_mises_count > 0): ?>
+    <p class="alert warn">
+      
+dc4a <strong><?= (int)$dva_piles_mises_count ?></strong> DVA ont encore les piles mises. 
+      Pensez a les retirer pour la saison estivale !
+    </p>
   <?php endif; ?>
 </div>
 <?php endif; ?>

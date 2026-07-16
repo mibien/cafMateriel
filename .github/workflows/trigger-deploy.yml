@@ -9,6 +9,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: dev  # <-- Force le checkout de la branche dev
 
       - name: Trigger deployment
         run: |

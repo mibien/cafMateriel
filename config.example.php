@@ -8,8 +8,8 @@
 // --- A ADAPTER avec tes infos OVH ---
 define('DB_HOST', 'hote.mysql.db'); // ton hote MySQL OVH
 define('DB_NAME', 'hote');           // nom de la base (souvent identique a l'hote)
-define('DB_USER', 'ton_identifiant_ovh');
-define('DB_PASS', 'ton_mot_de_passe_ovh');
+define('DB_USER', 'ton_identifiant');
+define('DB_PASS', 'ton_mot_de_passe');
 define('DB_CHARSET', 'utf8mb4');
 
 // Duree de session (en secondes) avant deconnexion automatique

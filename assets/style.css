@@ -129,8 +129,8 @@ input, select, textarea {
 
 details.card summary { list-style: none; }
 details.card summary::-webkit-details-marker { display: none; }
-details.card summary::before { content: "▶ "; font-size: 0.8em; }
-details.card[open] summary::before { content: "▼ "; }
+details.card summary::before { content: "\25b6 "; font-size: 0.8em; }
+details.card[open] summary::before { content: "\25bc "; }
 
 .scroll-sync-top {
   overflow-x: scroll;
@@ -161,3 +161,35 @@ details.card[open] summary::before { content: "▼ "; }
   border: 3px solid var(--gris-clair);
 }
 
+/* Styles pour les boutons de basculement des piles des DVA */
+.btn-piles {
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--bordure);
+  background: white;
+  color: var(--bleu-fonce);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.btn-piles:hover {
+  background: var(--gris-clair);
+}
+.btn-piles-mises {
+  background: #fff0f0;
+  border-color: #ffcccc;
+  color: var(--rouge);
+}
+.btn-piles-mises:hover {
+  background: #ffdddd;
+}
+.btn-piles-retirees {
+  background: #f0fff0;
+  border-color: #ccffcc;
+  color: var(--vert);
+}
+.btn-piles-retirees:hover {
+  background: #ddffdd;
+}
+/* Déploiement déclenché le <?php echo date('Y-m-d H:i:s'); ?> */

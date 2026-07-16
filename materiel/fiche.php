@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $stmt = $pdo->prepare("
-    SELECT m.*, t.libelle AS type_libelle
+    SELECT m.*, t.libelle AS type_libelle, t.code AS type_code
     FROM materiel m JOIN types_epi t ON t.id = m.type_id
     WHERE m.id = ?
 ");
@@ -185,6 +185,24 @@ include __DIR__ . '/../includes/header.php';
       </div>
     </div>
 
+    <!-- Bouton pour basculer l'état des piles (uniquement pour les DVA) -->
+    <?php if ($m['type_code'] === 'DVA'): ?>
+    <div class="form-group">
+      <label>État des piles</label>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button 
+          type="button"
+          class="btn btn-piles btn-piles-<?= htmlspecialchars($m['piles'] ?? 'mises') ?>"
+          onclick="togglePilesFiche(<?= $m['id'] ?>, this)"
+          data-etat-actuel="<?= htmlspecialchars($m['piles'] ?? 'mises') ?>"
+        >
+          <?= htmlspecialchars($m['piles'] ?? 'mises') ?>
+        </button>
+        <span style="color: var(--gris); font-size: 0.85rem;">Cliquez pour basculer</span>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="form-group">
       <label>Commentaire</label>
       <textarea name="commentaire" rows="2"><?= htmlspecialchars($m['commentaire'] ?? '') ?></textarea>
@@ -206,6 +224,9 @@ include __DIR__ . '/../includes/header.php';
       <tr><th>Prochaine revision</th><td><?= htmlspecialchars($m['date_prochaine_revision'] ?? '-') ?></td></tr>
       <tr><th>Quantite dispo / totale</th><td><?= (int)$m['quantite_disponible'] ?> / <?= (int)$m['quantite_stock'] ?></td></tr>
       <tr><th>Statut</th><td><span class="statut-<?= htmlspecialchars($m['statut']) ?>"><?= htmlspecialchars($m['statut']) ?></span></td></tr>
+      <?php if ($m['type_code'] === 'DVA'): ?>
+      <tr><th>État des piles</th><td><?= htmlspecialchars($m['piles'] ?? '-') ?></td></tr>
+      <?php endif; ?>
       <tr><th>Commentaire</th><td><?= htmlspecialchars($m['commentaire'] ?? '-') ?></td></tr>
     </table>
   <?php endif; ?>
@@ -230,5 +251,36 @@ include __DIR__ . '/../includes/header.php';
     </tbody>
   </table>
 </div>
+
+<?php if (has_min_role('responsable_materiel') && ($m['type_code'] === 'DVA')): ?>
+<script>
+// Fonction pour basculer l'état des piles des DVA dans la fiche détaillée
+function togglePilesFiche(materielId, button) {
+  const etatActuel = button.dataset.etatActuel;
+  const nouvelEtat = etatActuel === 'mises' ? 'retirées' : 'mises';
+  
+  fetch('/materiel/toggle_piles.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'id=' + encodeURIComponent(materielId) + '&etat=' + encodeURIComponent(nouvelEtat) + '&csrf=' + encodeURIComponent('<?= csrf_token() ?>')
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      button.textContent = nouvelEtat;
+      button.dataset.etatActuel = nouvelEtat;
+      button.className = 'btn btn-piles btn-piles-' + nouvelEtat;
+    } else {
+      alert('Erreur : ' + (data.error || 'Impossible de mettre à jour l\'état des piles.'));
+    }
+  })
+  .catch(error => {
+    alert('Erreur réseau : ' + error.message);
+  });
+}
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

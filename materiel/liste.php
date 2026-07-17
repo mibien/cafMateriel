@@ -53,6 +53,15 @@ $alertes['revisions_proches'] = $pdo->query("
     AND date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
 ")->fetchColumn();
 
+// Recuperer la liste des articles arrivant a echeance de revision
+$materielRevisionsProches = $pdo->query("
+    SELECT m.id, m.marque, m.modele, m.numero_serie, m.date_prochaine_revision
+    FROM materiel m
+    WHERE m.date_prochaine_revision IS NOT NULL
+    AND m.date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
+    ORDER BY m.date_prochaine_revision, m.marque, m.modele, m.numero_serie
+")->fetchAll();
+
 $alertes['materiel_perdu'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'perdu'")->fetchColumn();
 
 $alertes['materiel_hors_service'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'hors_service'")->fetchColumn();
@@ -90,6 +99,44 @@ include __DIR__ . '/../includes/header.php';
   <h2>À traiter</h2>
   <?php if ($alertes['revisions_proches'] > 0): ?>
     <p class="alert warn"><?= (int)$alertes['revisions_proches'] ?> article(s) arrivent à échéance de révision dans les 60 jours.</p>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des articles à réviser
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($materielRevisionsProches)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th>Prochaine révision</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($materielRevisionsProches as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['date_prochaine_revision'] ?? '-') ?></td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
   <?php endif; ?>
   <?php if ($alertes['materiel_en_revision'] > 0): ?>
     <p><?= (int)$alertes['materiel_en_revision'] ?> article(s) actuellement en révision.</p>

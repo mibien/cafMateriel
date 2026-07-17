@@ -111,7 +111,7 @@ include __DIR__ . '/../includes/header.php';
                 <th>Marque</th>
                 <th>Modèle</th>
                 <th>N° serie</th>
-                <th>Prochaine révision</th>
+                <th>Statut</th>
                 <th style="text-align: right;">Action</th>
               </tr>
             </thead>
@@ -121,7 +121,23 @@ include __DIR__ . '/../includes/header.php';
                   <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
                   <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
                   <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($item['date_prochaine_revision'] ?? '-') ?></td>
+                  <td>
+                    <?php
+                    $dateRevision = $item['date_prochaine_revision'];
+                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
+                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
+                    
+                    $aujourdhui = new DateTime();
+                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    
+                    if ($dateRevObj && $dateRevObj < $aujourdhui):
+                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
+                    else:
+                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
+                    endif;
+                    ?>
+                  </td>
                   <td style="text-align: right;">
                     <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
                        class="btn" 
@@ -253,45 +269,40 @@ include __DIR__ . '/../includes/header.php';
         <th>Qte dispo / totale</th><th>Statut</th><th>Piles</th><th>Commentaire</th><th>Modifie le</th>
       </tr>
     </thead>
-    <tbody>
-      <?php foreach ($materiel as $m): ?>
-      <tr style="cursor:pointer;" onclick="window.location='/materiel/fiche.php?id=<?= $m['id'] ?>'">
-        <td><?= htmlspecialchars($m['type_libelle']) ?></td>
-        <td><?= htmlspecialchars($m['marque'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['modele'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['numero_serie'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['annee_fabrication'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_achat'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_premiere_utilisation'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['longueur_cm'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['diametre_mm'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_mise_au_rebut'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_derniere_revision'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_prochaine_revision'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['sac_rangement'] ?? '-') ?></td>
-        <td><?= (int)$m['quantite_disponible'] ?> / <?= (int)$m['quantite_stock'] ?></td>
-        <td><span class="statut-<?= htmlspecialchars($m['statut']) ?>"><?= htmlspecialchars($m['statut']) ?></span></td>
-        <td>
-          <?php if ($m['type_code'] === 'DVA' && has_min_role('responsable_materiel')): ?>
-            <button 
-              class="btn-piles btn-piles-<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
-              data-materiel-id="<?= $m['id'] ?>"
-              data-etat-actuel="<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
-              onclick="event.stopPropagation(); togglePiles(this);"
-            >
-              <?= htmlspecialchars($m['piles'] ?? '-') ?>
-            </button>
-          <?php endif; ?>
-        </td>
-        <td><?= htmlspecialchars($m['commentaire'] ?? '-') ?></td>
-        <td><?= htmlspecialchars(substr($m['date_maj'], 0, 16)) ?></td>
-      </tr>
-      <?php endforeach; ?>
-      <?php if (empty($materiel)): ?>
-        <tr><td colspan="17">Aucun materiel ne correspond a ces criteres.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
+            <tbody>
+              <?php foreach ($materielRevisionsProches as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td>
+                    <?php
+                    $dateRevision = $item['date_prochaine_revision'];
+                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
+                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
+                    
+                    $aujourdhui = new DateTime();
+                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    
+                    if ($dateRevObj && $dateRevObj < $aujourdhui):
+                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
+                    else:
+                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
+                    endif;
+                    ?>
+                  </td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
   </div>
 </div>
 

@@ -59,6 +59,23 @@ $alertes['materiel_hors_service'] = $pdo->query("SELECT COUNT(*) FROM materiel W
 
 $alertes['materiel_en_revision'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'en_revision'")->fetchColumn();
 
+// Alerte pour les piles des DVA
+$alertes['piles_dva_mises'] = $pdo->query(
+    "SELECT COUNT(*) FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE t.code = 'DVA' AND m.piles = 'mises'"
+)->fetchColumn();
+
+// Recuperer la liste des DVA avec piles mises pour l'encart deroulant
+$dvaAvecPiles = $pdo->query(
+    "SELECT m.id, m.marque, m.modele, m.numero_serie
+    FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE t.code = 'DVA' AND m.piles = 'mises'
+    ORDER BY m.marque, m.modele, m.numero_serie"
+)->fetchAll();
+
+
 // Construit la query string pour le lien d'export (reprend les memes filtres)
 $queryExport = http_build_query(['type' => $typeFiltre, 'statut' => $statutFiltre, 'q' => $recherche]);
 
@@ -83,7 +100,46 @@ include __DIR__ . '/../includes/header.php';
   <?php if ($alertes['materiel_hors_service'] > 0): ?>
     <p class="alert err"><?= (int)$alertes['materiel_hors_service'] ?> article(s) hors service.</p>
   <?php endif; ?>
-  <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0): ?>
+  <?php if ($alertes['piles_dva_mises'] > 0): ?>
+    <p class="alert warn"><?= (int)$alertes['piles_dva_mises'] ?> DVA ont encore leurs piles mises.</p>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des DVA avec piles mises
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($dvaAvecPiles)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($dvaAvecPiles as $dva): ?>
+                <tr>
+                  <td><?= htmlspecialchars($dva['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($dva['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($dva['numero_serie'] ?? '-') ?></td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $dva['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
+  <?php endif; ?>
+  <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0 && $alertes['piles_dva_mises'] == 0): ?>
     <p>Aucune alerte en cours.</p>
   <?php endif; ?>
 </div>

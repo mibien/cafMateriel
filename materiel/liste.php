@@ -53,11 +53,37 @@ $alertes['revisions_proches'] = $pdo->query("
     AND date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
 ")->fetchColumn();
 
+// Recuperer la liste des articles arrivant a echeance de revision
+$materielRevisionsProches = $pdo->query("
+    SELECT m.id, m.marque, m.modele, m.numero_serie, m.date_prochaine_revision
+    FROM materiel m
+    WHERE m.date_prochaine_revision IS NOT NULL
+    AND m.date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
+    ORDER BY m.date_prochaine_revision, m.marque, m.modele, m.numero_serie
+")->fetchAll();
+
 $alertes['materiel_perdu'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'perdu'")->fetchColumn();
 
 $alertes['materiel_hors_service'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'hors_service'")->fetchColumn();
 
 $alertes['materiel_en_revision'] = $pdo->query("SELECT COUNT(*) FROM materiel WHERE statut = 'en_revision'")->fetchColumn();
+
+// Alerte pour les piles des DVA
+$alertes['piles_dva_mises'] = $pdo->query(
+    "SELECT COUNT(*) FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE t.code = 'DVA' AND m.piles = 'mises'"
+)->fetchColumn();
+
+// Recuperer la liste des DVA avec piles mises pour l'encart deroulant
+$dvaAvecPiles = $pdo->query(
+    "SELECT m.id, m.marque, m.modele, m.numero_serie
+    FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE t.code = 'DVA' AND m.piles = 'mises'
+    ORDER BY m.marque, m.modele, m.numero_serie"
+)->fetchAll();
+
 
 // Construit la query string pour le lien d'export (reprend les memes filtres)
 $queryExport = http_build_query(['type' => $typeFiltre, 'statut' => $statutFiltre, 'q' => $recherche]);
@@ -73,6 +99,60 @@ include __DIR__ . '/../includes/header.php';
   <h2>À traiter</h2>
   <?php if ($alertes['revisions_proches'] > 0): ?>
     <p class="alert warn"><?= (int)$alertes['revisions_proches'] ?> article(s) arrivent à échéance de révision dans les 60 jours.</p>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des articles à réviser
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($materielRevisionsProches)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th>Statut</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($materielRevisionsProches as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td>
+                    <?php
+                    $dateRevision = $item['date_prochaine_revision'];
+                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
+                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
+                    
+                    $aujourdhui = new DateTime();
+                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    
+                    if ($dateRevObj && $dateRevObj < $aujourdhui):
+                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
+                    else:
+                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
+                    endif;
+                    ?>
+                  </td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
   <?php endif; ?>
   <?php if ($alertes['materiel_en_revision'] > 0): ?>
     <p><?= (int)$alertes['materiel_en_revision'] ?> article(s) actuellement en révision.</p>
@@ -83,7 +163,46 @@ include __DIR__ . '/../includes/header.php';
   <?php if ($alertes['materiel_hors_service'] > 0): ?>
     <p class="alert err"><?= (int)$alertes['materiel_hors_service'] ?> article(s) hors service.</p>
   <?php endif; ?>
-  <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0): ?>
+  <?php if ($alertes['piles_dva_mises'] > 0): ?>
+    <p class="alert warn"><?= (int)$alertes['piles_dva_mises'] ?> DVA ont encore leurs piles mises.</p>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des DVA avec piles mises
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($dvaAvecPiles)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($dvaAvecPiles as $dva): ?>
+                <tr>
+                  <td><?= htmlspecialchars($dva['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($dva['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($dva['numero_serie'] ?? '-') ?></td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $dva['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
+  <?php endif; ?>
+  <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0 && $alertes['piles_dva_mises'] == 0): ?>
     <p>Aucune alerte en cours.</p>
   <?php endif; ?>
 </div>
@@ -150,45 +269,40 @@ include __DIR__ . '/../includes/header.php';
         <th>Qte dispo / totale</th><th>Statut</th><th>Piles</th><th>Commentaire</th><th>Modifie le</th>
       </tr>
     </thead>
-    <tbody>
-      <?php foreach ($materiel as $m): ?>
-      <tr style="cursor:pointer;" onclick="window.location='/materiel/fiche.php?id=<?= $m['id'] ?>'">
-        <td><?= htmlspecialchars($m['type_libelle']) ?></td>
-        <td><?= htmlspecialchars($m['marque'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['modele'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['numero_serie'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['annee_fabrication'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_achat'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_premiere_utilisation'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['longueur_cm'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['diametre_mm'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_mise_au_rebut'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_derniere_revision'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['date_prochaine_revision'] ?? '-') ?></td>
-        <td><?= htmlspecialchars($m['sac_rangement'] ?? '-') ?></td>
-        <td><?= (int)$m['quantite_disponible'] ?> / <?= (int)$m['quantite_stock'] ?></td>
-        <td><span class="statut-<?= htmlspecialchars($m['statut']) ?>"><?= htmlspecialchars($m['statut']) ?></span></td>
-        <td>
-          <?php if ($m['type_code'] === 'DVA' && has_min_role('responsable_materiel')): ?>
-            <button 
-              class="btn-piles btn-piles-<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
-              data-materiel-id="<?= $m['id'] ?>"
-              data-etat-actuel="<?= htmlspecialchars($m['piles'] ?? 'retirées') ?>"
-              onclick="event.stopPropagation(); togglePiles(this);"
-            >
-              <?= htmlspecialchars($m['piles'] ?? '-') ?>
-            </button>
-          <?php endif; ?>
-        </td>
-        <td><?= htmlspecialchars($m['commentaire'] ?? '-') ?></td>
-        <td><?= htmlspecialchars(substr($m['date_maj'], 0, 16)) ?></td>
-      </tr>
-      <?php endforeach; ?>
-      <?php if (empty($materiel)): ?>
-        <tr><td colspan="17">Aucun materiel ne correspond a ces criteres.</td></tr>
-      <?php endif; ?>
-    </tbody>
-  </table>
+            <tbody>
+              <?php foreach ($materielRevisionsProches as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td>
+                    <?php
+                    $dateRevision = $item['date_prochaine_revision'];
+                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
+                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
+                    
+                    $aujourdhui = new DateTime();
+                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
+                    
+                    if ($dateRevObj && $dateRevObj < $aujourdhui):
+                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
+                    else:
+                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
+                    endif;
+                    ?>
+                  </td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
   </div>
 </div>
 

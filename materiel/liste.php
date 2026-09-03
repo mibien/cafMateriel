@@ -47,11 +47,24 @@ $dernierInventaire = $pdo->query("SELECT date_inventaire FROM inventaires ORDER 
 
 // Alertes a traiter
 $alertes = [];
-$alertes['revisions_proches'] = $pdo->query("
+
+// Compter les articles dont la date de revision est deja passee
+$alertes['revisions_passees'] = $pdo->query("
     SELECT COUNT(*) FROM materiel
     WHERE date_prochaine_revision IS NOT NULL
+    AND date_prochaine_revision < CURDATE()
+")->fetchColumn();
+
+// Compter les articles dont la date de revision arrive dans les 60 jours (futur)
+$alertes['revisions_a_venir'] = $pdo->query("
+    SELECT COUNT(*) FROM materiel
+    WHERE date_prochaine_revision IS NOT NULL
+    AND date_prochaine_revision > CURDATE()
     AND date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
 ")->fetchColumn();
+
+// Total pour compatibilite
+$alertes['revisions_proches'] = $alertes['revisions_passees'] + $alertes['revisions_a_venir'];
 
 // Recuperer la liste des articles arrivant a echeance de revision
 $materielRevisionsProches = $pdo->query("
@@ -98,7 +111,18 @@ include __DIR__ . '/../includes/header.php';
 <div class="card">
   <h2>À traiter</h2>
   <?php if ($alertes['revisions_proches'] > 0): ?>
-    <p class="alert warn"><?= (int)$alertes['revisions_proches'] ?> article(s) arrivent à échéance de révision dans les 60 jours.</p>
+    <p class="alert warn">
+      <?php
+      $parts = [];
+      if ($alertes['revisions_passees'] > 0) {
+          $parts[] = (int)$alertes['revisions_passees'] . ' article(s) sont arrivé(s) à échéance de révision';
+      }
+      if ($alertes['revisions_a_venir'] > 0) {
+          $parts[] = (int)$alertes['revisions_a_venir'] . ' article(s) arrivent à échéance de révision dans les 60 jours';
+      }
+      echo implode(' et ', $parts);
+      ?>.
+    </p>
     <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
       <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
         Voir la liste des articles à réviser

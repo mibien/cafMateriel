@@ -269,40 +269,43 @@ include __DIR__ . '/../includes/header.php';
         <th>Qte dispo / totale</th><th>Statut</th><th>Piles</th><th>Commentaire</th><th>Modifie le</th>
       </tr>
     </thead>
-            <tbody>
-              <?php foreach ($materielRevisionsProches as $item): ?>
-                <tr>
-                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
-                  <td>
-                    <?php
-                    $dateRevision = $item['date_prochaine_revision'];
-                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
-                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
-                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
-                    
-                    $aujourdhui = new DateTime();
-                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
-                    
-                    if ($dateRevObj && $dateRevObj < $aujourdhui):
-                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
-                    else:
-                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
-                    endif;
-                    ?>
-                  </td>
-                  <td style="text-align: right;">
-                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
-                       class="btn" 
-                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
-                       onclick="event.stopPropagation();">
-                      Voir fiche
-                    </a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
+    <tbody>
+      <?php foreach ($materiel as $item): ?>
+        <tr onclick="window.location.href='/materiel/fiche.php?id=<?= $item['id'] ?>'" style="cursor:pointer;">
+          <td><?= htmlspecialchars($item['type_libelle'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['annee_fabrication'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_achat'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_premiere_utilisation'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['longueur'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['diametre'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_rebut'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_derniere_revision'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_prochaine_revision'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['sac'] ?? '-') ?></td>
+          <td>
+            <?= htmlspecialchars($item['quantite_disponible'] ?? '-') ?> / <?= htmlspecialchars($item['quantite_stock'] ?? '-') ?>
+          </td>
+          <td><?= htmlspecialchars($item['statut'] ?? '-') ?></td>
+          <td>
+            <?php if ($item['type_code'] === 'DVA'): ?>
+              <button class="btn-piles btn-piles-<?= htmlspecialchars($item['piles'] ?? 'retirées') ?>"
+                      data-materiel-id="<?= $item['id'] ?>"
+                      data-etat-actuel="<?= htmlspecialchars($item['piles'] ?? 'retirées') ?>"
+                      onclick="event.stopPropagation(); togglePiles(this);">
+                <?= htmlspecialchars($item['piles'] ?? 'retirées') ?>
+              </button>
+            <?php else: ?>
+              <?= htmlspecialchars($item['piles'] ?? '-') ?>
+            <?php endif; ?>
+          </td>
+          <td><?= htmlspecialchars($item['commentaire'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['modifie_le'] ?? '-') ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
   </div>
 </div>
 

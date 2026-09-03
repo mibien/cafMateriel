@@ -47,11 +47,24 @@ $dernierInventaire = $pdo->query("SELECT date_inventaire FROM inventaires ORDER 
 
 // Alertes a traiter
 $alertes = [];
-$alertes['revisions_proches'] = $pdo->query("
+
+// Compter les articles dont la date de revision est deja passee
+$alertes['revisions_passees'] = $pdo->query("
     SELECT COUNT(*) FROM materiel
     WHERE date_prochaine_revision IS NOT NULL
+    AND date_prochaine_revision < CURDATE()
+")->fetchColumn();
+
+// Compter les articles dont la date de revision arrive dans les 60 jours (futur)
+$alertes['revisions_a_venir'] = $pdo->query("
+    SELECT COUNT(*) FROM materiel
+    WHERE date_prochaine_revision IS NOT NULL
+    AND date_prochaine_revision > CURDATE()
     AND date_prochaine_revision <= DATE_ADD(CURDATE(), INTERVAL 60 DAY)
 ")->fetchColumn();
+
+// Total pour compatibilite
+$alertes['revisions_proches'] = $alertes['revisions_passees'] + $alertes['revisions_a_venir'];
 
 // Recuperer la liste des articles arrivant a echeance de revision
 $materielRevisionsProches = $pdo->query("
@@ -98,7 +111,18 @@ include __DIR__ . '/../includes/header.php';
 <div class="card">
   <h2>À traiter</h2>
   <?php if ($alertes['revisions_proches'] > 0): ?>
-    <p class="alert warn"><?= (int)$alertes['revisions_proches'] ?> article(s) arrivent à échéance de révision dans les 60 jours.</p>
+    <p class="alert warn">
+      <?php
+      $parts = [];
+      if ($alertes['revisions_passees'] > 0) {
+          $parts[] = (int)$alertes['revisions_passees'] . ' article(s) sont arrivé(s) à échéance de révision';
+      }
+      if ($alertes['revisions_a_venir'] > 0) {
+          $parts[] = (int)$alertes['revisions_a_venir'] . ' article(s) arrivent à échéance de révision dans les 60 jours';
+      }
+      echo implode(' et ', $parts);
+      ?>.
+    </p>
     <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
       <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
         Voir la liste des articles à réviser
@@ -269,40 +293,43 @@ include __DIR__ . '/../includes/header.php';
         <th>Qte dispo / totale</th><th>Statut</th><th>Piles</th><th>Commentaire</th><th>Modifie le</th>
       </tr>
     </thead>
-            <tbody>
-              <?php foreach ($materielRevisionsProches as $item): ?>
-                <tr>
-                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
-                  <td>
-                    <?php
-                    $dateRevision = $item['date_prochaine_revision'];
-                    $identifiant = trim(($item['marque'] ?? '') . ' ' . ($item['modele'] ?? '') . ' ' . ($item['numero_serie'] ?? ''));
-                    $dateObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
-                    $dateFr = $dateObj ? $dateObj->format('d/m/Y') : $dateRevision;
-                    
-                    $aujourdhui = new DateTime();
-                    $dateRevObj = DateTime::createFromFormat('Y-m-d', $dateRevision);
-                    
-                    if ($dateRevObj && $dateRevObj < $aujourdhui):
-                      echo "La date de révision de l'article " . htmlspecialchars($identifiant) . " est arrivée à échéance le " . $dateFr;
-                    else:
-                      echo "L'article " . htmlspecialchars($identifiant) . " arrive à échéance de révision le " . $dateFr;
-                    endif;
-                    ?>
-                  </td>
-                  <td style="text-align: right;">
-                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
-                       class="btn" 
-                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
-                       onclick="event.stopPropagation();">
-                      Voir fiche
-                    </a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
+    <tbody>
+      <?php foreach ($materiel as $item): ?>
+        <tr onclick="window.location.href='/materiel/fiche.php?id=<?= $item['id'] ?>'" style="cursor:pointer;">
+          <td><?= htmlspecialchars($item['type_libelle'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['annee_fabrication'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_achat'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_premiere_utilisation'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['longueur'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['diametre'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_rebut'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_derniere_revision'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['date_prochaine_revision'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['sac'] ?? '-') ?></td>
+          <td>
+            <?= htmlspecialchars($item['quantite_disponible'] ?? '-') ?> / <?= htmlspecialchars($item['quantite_stock'] ?? '-') ?>
+          </td>
+          <td><?= htmlspecialchars($item['statut'] ?? '-') ?></td>
+          <td>
+            <?php if ($item['type_code'] === 'DVA'): ?>
+              <button class="btn-piles btn-piles-<?= htmlspecialchars($item['piles'] ?? 'retirées') ?>"
+                      data-materiel-id="<?= $item['id'] ?>"
+                      data-etat-actuel="<?= htmlspecialchars($item['piles'] ?? 'retirées') ?>"
+                      onclick="event.stopPropagation(); togglePiles(this);">
+                <?= htmlspecialchars($item['piles'] ?? 'retirées') ?>
+              </button>
+            <?php else: ?>
+              <?= htmlspecialchars($item['piles'] ?? '-') ?>
+            <?php endif; ?>
+          </td>
+          <td><?= htmlspecialchars($item['commentaire'] ?? '-') ?></td>
+          <td><?= htmlspecialchars($item['modifie_le'] ?? '-') ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
   </div>
 </div>
 

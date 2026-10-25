@@ -97,6 +97,15 @@ $dvaAvecPiles = $pdo->query(
     ORDER BY m.marque, m.modele, m.numero_serie"
 )->fetchAll();
 
+// Recuperer la liste des articles hors service pour l'encart deroulant
+$materielHorsService = $pdo->query(
+    "SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle
+    FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE m.statut = 'hors_service'
+    ORDER BY t.libelle, m.marque, m.modele, m.numero_serie"
+)->fetchAll();
+
 
 // Construit la query string pour le lien d'export (reprend les memes filtres)
 $queryExport = http_build_query(['type' => $typeFiltre, 'statut' => $statutFiltre, 'q' => $recherche]);
@@ -186,6 +195,44 @@ include __DIR__ . '/../includes/header.php';
   <?php endif; ?>
   <?php if ($alertes['materiel_hors_service'] > 0): ?>
     <p class="alert err"><?= (int)$alertes['materiel_hors_service'] ?> article(s) hors service.</p>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des articles hors service
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($materielHorsService)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($materielHorsService as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['type_libelle'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
   <?php endif; ?>
   <?php if ($alertes['piles_dva_mises'] > 0): ?>
     <p class="alert warn"><?= (int)$alertes['piles_dva_mises'] ?> DVA ont encore leurs piles mises.</p>

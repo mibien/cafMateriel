@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 ini_set('log_errors', 1);
-ini_set('error_log', '/tmp/php_errors.log');
+ini_set('error_log', __DIR__ . '/php_errors.log');
 
 // Le reste du code...
 require_once __DIR__ . '/../auth.php';
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $types = $pdo->query("SELECT id, libelle FROM types_epi WHERE actif = 1 ORDER BY libelle")->fetchAll();
 $materielDispo = $pdo->query("
-    SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle, t.id AS type_id
+    SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle, t.id AS type_id, m.quantite_disponible
     FROM materiel m JOIN types_epi t ON t.id = m.type_id
     WHERE m.statut = 'disponible' AND m.quantite_disponible > 0
     ORDER BY t.libelle, m.marque
@@ -131,7 +131,8 @@ foreach ($materielDispo as $m) {
         'modele' => $m['modele'] ?? '',
         'numero_serie' => $m['numero_serie'] ?? '',
         'type_libelle' => $m['type_libelle'] ?? '',
-        'type_id' => (int)($m['type_id'] ?? 0)
+        'type_id' => (int)($m['type_id'] ?? 0),
+        'quantite_disponible' => (int)($m['quantite_disponible'] ?? 0)
     ];
     $materielDispoClean[] = $cleanM;
     $materielParType[(int)($m['type_id'] ?? 0)][] = $cleanM;
@@ -183,7 +184,7 @@ include __DIR__ . '/../includes/header.php';
           <option value="">-- OU un article precis --</option>
           <option value="peu_importe">Peu importe</option>
           <?php foreach ($materielDispo as $m): ?>
-            <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>">
+            <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>">
               <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '')) ?>
             </option>
           <?php endforeach; ?>
@@ -308,6 +309,7 @@ function filtrerMateriel(selectType) {
       option.value = m.id;
       option.textContent = m.type_libelle + ' - ' + (m.marque || '') + ' ' + (m.modele || '') + (m.numero_serie ? ' (' + m.numero_serie + ')' : '');
       option.dataset.typeId = m.type_id;
+      option.dataset.quantiteDisponible = m.quantite_disponible;
       selectMateriel.appendChild(option);
     });
     // Reselectionner si c'etait un article du type selectionne
@@ -324,6 +326,7 @@ function filtrerMateriel(selectType) {
       option.value = m.id;
       option.textContent = m.type_libelle + ' - ' + (m.marque || '') + ' ' + (m.modele || '') + (m.numero_serie ? ' (' + m.numero_serie + ')' : '');
       option.dataset.typeId = m.type_id;
+      option.dataset.quantiteDisponible = m.quantite_disponible;
       selectMateriel.appendChild(option);
     });
     // Reselectionner si c'etait un article
@@ -352,6 +355,7 @@ function validerLigne(bouton) {
   const ligne = bouton.closest('.ligne-materiel');
   const selectType = ligne.querySelector('.select-type');
   const selectMateriel = ligne.querySelector('.select-materiel');
+  const inputQuantite = ligne.querySelector('input[name="quantite[]"]');
   
   // Verifier qu'au moins un element est selectionne
   if (!selectType.value && !selectMateriel.value) {
@@ -370,8 +374,41 @@ function validerLigne(bouton) {
     }
   }
   
+  // Si une quantite est specifiee, verifier la disponibilite
+  const quantite = inputQuantite ? parseInt(inputQuantite.value) || 1 : 1;
+  
+  if (selectMateriel.value && selectMateriel.value !== 'peu_importe') {
+    // Verifier la quantite disponible pour l'article selectionne
+    const selectedOption = selectMateriel.options[selectMateriel.selectedIndex];
+    const quantiteDisponible = selectedOption ? parseInt(selectedOption.dataset.quantiteDisponible || 0) : 0;
+    
+    if (quantite > quantiteDisponible) {
+      const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
+      alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
+      bouton.textContent = 'OK';
+      bouton.style.backgroundColor = '';
+      bouton.style.color = '';
+      return false;
+    }
+  } else if (selectType.value) {
+    // Pour un type, on ne peut pas verifier la quantite sans requete AJAX
+    // On va utiliser les donnees prechargees
+    const typeId = selectType.value;
+    const materielsDuType = materielParType[typeId] || [];
+    const totalDispo = materielsDuType.reduce((sum, m) => sum + (m.quantite_disponible || 0), 0);
+    
+    if (quantite > totalDispo) {
+      const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
+      alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
+      bouton.textContent = 'OK';
+      bouton.style.backgroundColor = '';
+      bouton.style.color = '';
+      return false;
+    }
+  }
+  
   // Changer le bouton OK pour indiquer la validation
-  bouton.textContent = '✓';
+  bouton.textContent = '\u2713';
   bouton.style.backgroundColor = '#28a745';
   bouton.style.color = 'white';
   

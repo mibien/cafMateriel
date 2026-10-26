@@ -263,6 +263,13 @@ document.addEventListener('DOMContentLoaded', function() {
             reinitialiserBoutonOK(this);
         });
     });
+    
+    // Filtrer les articles pour les types deja selectionnes au chargement
+    document.querySelectorAll('.select-type').forEach(function(select) {
+        if (select.value) {
+            filtrerMateriel(select);
+        }
+    });
 });
 
 function ajouterLigne() {

@@ -353,11 +353,8 @@ function filtrerMateriel(selectType) {
   // Conserver la valeur selectionnee si elle existe
   const selectedValue = selectMateriel.value;
   
-  // Changer le texte de la premiere option en fonction du contexte
-  const defaultText = typeId ? '-- Selectionner un article precis --' : '-- OU un article precis --';
-  
   // Vider les options sauf les deux premieres
-  selectMateriel.innerHTML = '<option value="">' + defaultText + '</option><option value="peu_importe">Peu importe</option>';
+  selectMateriel.innerHTML = '<option value="">-- OU un article precis --</option><option value="peu_importe">Peu importe</option>';
   
   if (typeId && materielParType[typeId]) {
     materielParType[typeId].forEach(function(m) {
@@ -389,8 +386,6 @@ function filtrerMateriel(selectType) {
     if (selectedValue && selectedValue !== 'peu_importe') {
       selectMateriel.value = selectedValue;
     }
-    // Mettre a jour le texte de la premiere option
-    selectMateriel.querySelector('option[value=""]').textContent = '-- OU un article precis --';
   }
 }
 

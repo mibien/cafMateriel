@@ -1,12 +1,10 @@
 <?php
 // ACTIVER POUR LE DEBOGAGE
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/php_errors.log');
-
-// Le reste du code...
+// error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// ini_set('display_startup_errors', 1);
+// ini_set('log_errors', 1);
+// ini_set('error_log', __DIR__ . '/php_errors.log');
 require_once __DIR__ . '/../auth.php';
 require_min_role('encadrant');
 
@@ -20,9 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activite = trim($_POST['activite'] ?? '');
     $dateDebut = $_POST['date_debut'] ?? '';
     $dateFin = $_POST['date_fin'] ?? '';
-    $typeIds = $_POST['type_id'] ?? [];
-    $materielIds = $_POST['materiel_id'] ?? [];
-    $quantites = $_POST['quantite'] ?? [];
+    $typeIdsPost = $_POST['type_id'] ?? [];
+    $materielIdsPost = $_POST['materiel_id'] ?? [];
+    $quantitesPost = $_POST['quantite'] ?? [];
+    
+    $typeIds = $typeIdsPost;
+    $materielIds = $materielIdsPost;
+    $quantites = $quantitesPost;
 
     // Construit la liste des lignes valides (au moins un type OU un materiel par ligne)
     $lignes = [];
@@ -82,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($erreursDispo)) {
-            $erreur = implode(' ', $erreursDispo);
+            $erreur = implode('\n', $erreursDispo);
         } else {
         try {
             $pdo->beginTransaction();
@@ -157,22 +159,54 @@ include __DIR__ . '/../includes/header.php';
 
     <div class="form-group">
       <label for="activite">Activite / sortie concernee</label>
-      <input type="text" name="activite" id="activite" placeholder="Ex: Initiation escalade - falaise de ...">
+      <input type="text" name="activite" id="activite" placeholder="Ex: Initiation escalade - falaise de ..." value="<?= htmlspecialchars($erreur ? $activite : '') ?>">
     </div>
 
     <div style="display:flex; gap:1rem; flex-wrap:wrap;">
       <div class="form-group" style="flex:1; min-width:200px;">
         <label for="date_debut">Date de debut souhaitee (debut emprunt)</label>
-        <input type="date" name="date_debut" id="date_debut" required>
+        <input type="date" name="date_debut" id="date_debut" required value="<?= htmlspecialchars($erreur ? $dateDebut : '') ?>">
       </div>
       <div class="form-group" style="flex:1; min-width:200px;">
         <label for="date_fin">Date de fin souhaitee (retour prevu)</label>
-        <input type="date" name="date_fin" id="date_fin" required>
+        <input type="date" name="date_fin" id="date_fin" required value="<?= htmlspecialchars($erreur ? $dateFin : '') ?>">
       </div>
     </div>
 
     <h2>Materiel demande</h2>
     <div id="lignes-materiel">
+      <?php if ($erreur && !empty($typeIdsPost)):
+          foreach ($typeIdsPost as $i => $typeId):
+            $materielId = $materielIdsPost[$i] ?? null;
+            $quantite = $quantitesPost[$i] ?? 1;
+      ?>
+        <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
+          <select name="type_id[]" class="select-type" style="flex:2;">
+            <option value="">-- Type de materiel --</option>
+            <?php foreach ($types as $t): ?>
+              <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>><?php echo htmlspecialchars($t['libelle']); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+            <option value="">-- OU un article precis --</option>
+            <option value="peu_importe" <?= $materielId === 'peu_importe' ? 'selected' : '' ?>>Peu importe</option>
+            <?php foreach ($materielDispo as $m): ?>
+              <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>" <?= (int)$materielId === (int)$m['id'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '')) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+          <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
+          <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
+        </div>
+      <?php endforeach;
+      else:
+        // Affichage initial sans erreur
+        $firstLineType = null;
+        $firstLineMateriel = null;
+        $firstLineQuantite = 1;
+      ?>
       <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
         <select name="type_id[]" class="select-type" style="flex:2;">
           <option value="">-- Type de materiel --</option>
@@ -189,10 +223,11 @@ include __DIR__ . '/../includes/header.php';
             </option>
           <?php endforeach; ?>
         </select>
-        <input type="number" name="quantite[]" min="1" value="1" style="flex:1;">
-        <button type="button" class="btn vert btn-ok" onclick="validerLigne(this)">OK</button>
+        <input type="number" name="quantite[]" min="1" value="1" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+        <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
         <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
       </div>
+      <?php endif; ?>
     </div>
     <button type="button" class="btn secondaire" onclick="ajouterLigne()">+ Ajouter un article</button>
 
@@ -221,6 +256,13 @@ document.addEventListener('DOMContentLoaded', function() {
             verifierCoherence(this);
         });
     });
+    
+    // Attacher l'evenement onchange aux inputs quantite existants
+    document.querySelectorAll('input[name="quantite[]"]').forEach(function(input) {
+        input.addEventListener('change', function() {
+            reinitialiserBoutonOK(this);
+        });
+    });
 });
 
 function ajouterLigne() {
@@ -235,9 +277,11 @@ function ajouterLigne() {
   // Reinitialiser le bouton OK
   const btnOk = clone.querySelector('.btn-ok');
   if (btnOk) {
-    btnOk.textContent = 'OK';
-    btnOk.style.backgroundColor = '';
-    btnOk.style.color = '';
+    btnOk.textContent = 'Valider l\'article?';
+    btnOk.style.backgroundColor = '#dc3545';
+    btnOk.style.color = 'white';
+    btnOk.classList.remove('vert');
+    btnOk.classList.add('rouge');
   }
   
   // Attacher les evenements aux nouveaux elements
@@ -269,9 +313,16 @@ function ajouterLigne() {
     });
   }
   
+  const newInputQuantite = clone.querySelector('input[name="quantite[]"]');
+  if (newInputQuantite) {
+    newInputQuantite.addEventListener('change', function() {
+      reinitialiserBoutonOK(this);
+    });
+  }
+  
   conteneur.appendChild(clone);
   masquerErreur();
-}
+
 
 function supprimerLigne(bouton) {
   const conteneur = document.getElementById('lignes-materiel');
@@ -284,9 +335,11 @@ function supprimerLigne(bouton) {
     // Reinitialiser le bouton OK
     const btnOk = ligne.querySelector('.btn-ok');
     if (btnOk) {
-      btnOk.textContent = 'OK';
-      btnOk.style.backgroundColor = '';
-      btnOk.style.color = '';
+      btnOk.textContent = 'Valider l\'article?';
+      btnOk.style.backgroundColor = '#dc3545';
+      btnOk.style.color = 'white';
+      btnOk.classList.remove('vert');
+      btnOk.classList.add('rouge');
     }
   }
   masquerErreur();
@@ -300,8 +353,11 @@ function filtrerMateriel(selectType) {
   // Conserver la valeur selectionnee si elle existe
   const selectedValue = selectMateriel.value;
   
+  // Changer le texte de la premiere option en fonction du contexte
+  const defaultText = typeId ? '-- Selectionner un article precis --' : '-- OU un article precis --';
+  
   // Vider les options sauf les deux premieres
-  selectMateriel.innerHTML = '<option value="">-- OU un article precis --</option><option value="peu_importe">Peu importe</option>';
+  selectMateriel.innerHTML = '<option value="">' + defaultText + '</option><option value="peu_importe">Peu importe</option>';
   
   if (typeId && materielParType[typeId]) {
     materielParType[typeId].forEach(function(m) {
@@ -333,6 +389,8 @@ function filtrerMateriel(selectType) {
     if (selectedValue && selectedValue !== 'peu_importe') {
       selectMateriel.value = selectedValue;
     }
+    // Mettre a jour le texte de la premiere option
+    selectMateriel.querySelector('option[value=""]').textContent = '-- OU un article precis --';
   }
 }
 
@@ -348,6 +406,18 @@ function verifierCoherence(selectMateriel) {
       alert('L\'article selectionne ne correspond pas au type de materiel selectionne. Veuillez d\'abord selectionner le bon type.');
       selectMateriel.value = '';
     }
+  }
+}
+
+function reinitialiserBoutonOK(input) {
+  const ligne = input.closest('.ligne-materiel');
+  const btnOk = ligne.querySelector('.btn-ok');
+  if (btnOk && btnOk.textContent !== 'Valider l\'article?') {
+    btnOk.textContent = 'Valider l\'article?';
+    btnOk.style.backgroundColor = '#dc3545';
+    btnOk.style.color = 'white';
+    btnOk.classList.remove('vert');
+    btnOk.classList.add('rouge');
   }
 }
 
@@ -385,9 +455,11 @@ function validerLigne(bouton) {
     if (quantite > quantiteDisponible) {
       const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK';
-      bouton.style.backgroundColor = '';
-      bouton.style.color = '';
+      bouton.textContent = 'Valider l\'article?';
+      bouton.style.backgroundColor = '#dc3545';
+      bouton.style.color = 'white';
+      bouton.classList.remove('vert');
+      bouton.classList.add('rouge');
       return false;
     }
   } else if (selectType.value) {
@@ -400,17 +472,21 @@ function validerLigne(bouton) {
     if (quantite > totalDispo) {
       const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK';
-      bouton.style.backgroundColor = '';
-      bouton.style.color = '';
+      bouton.textContent = 'Valider l\'article?';
+      bouton.style.backgroundColor = '#dc3545';
+      bouton.style.color = 'white';
+      bouton.classList.remove('vert');
+      bouton.classList.add('rouge');
       return false;
     }
   }
   
-  // Changer le bouton OK pour indiquer la validation
-  bouton.textContent = '\u2713';
+  // Changer le bouton pour indiquer la validation
+  bouton.textContent = 'Article valide';
   bouton.style.backgroundColor = '#28a745';
   bouton.style.color = 'white';
+  bouton.classList.remove('rouge');
+  bouton.classList.add('vert');
   
   return true;
 }

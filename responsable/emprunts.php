@@ -216,7 +216,7 @@ include __DIR__ . '/../includes/header.php';
               <?php endforeach; ?>
             </select>
             <select name="materiel_id[]" class="select-materiel" style="flex:3;" onchange="verifierCoherence(this)">
-              <option value="">-- OU un article precis --</option>
+              <option value="">-- Selectionner un article precis --</option>
               <?php foreach ($materielDispo as $m): ?>
                 <?php
                   $preselectionne = $l['materiel_id']

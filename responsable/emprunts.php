@@ -40,7 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dispo = (int)$stmt->fetchColumn();
 
                 if ($dispo < $qte) {
-                    throw new Exception("Quantite insuffisante pour l'article #$materielId (disponible: $dispo, demande: $qte).");
+                    // Recuperer le nom de l'article pour le message d'erreur
+                    $stmtNom = $pdo->prepare("SELECT marque, modele, numero_serie FROM materiel WHERE id = ?");
+                    $stmtNom->execute([$materielId]);
+                    $art = $stmtNom->fetch();
+                    $nom = $art ? trim(($art['marque'] ?? '') . ' ' . ($art['modele'] ?? '') . ($art['numero_serie'] ? ' (' . $art['numero_serie'] . ')' : '')) : "article #$materielId";
+                    throw new Exception("Quantite insuffisante pour l'article {$nom} (disponible: $dispo, demande: $qte).");
                 }
 
                 $pdo->prepare("INSERT INTO emprunts_lignes (emprunt_id, materiel_id, quantite) VALUES (?, ?, ?)")
@@ -296,8 +301,8 @@ function ajouterLigne() {
   // Reinitialiser le bouton OK
   const btnOk = clone.querySelector('.btn-ok');
   if (btnOk) {
-    btnOk.textContent = 'OK';
-    btnOk.style.backgroundColor = '';
+    btnOk.textContent = 'OK?';
+    btnOk.style.backgroundColor = '#dc3545';
     btnOk.style.color = '';
   }
   
@@ -345,8 +350,8 @@ function supprimerLigne(bouton) {
     // Reinitialiser le bouton OK
     const btnOk = ligne.querySelector('.btn-ok');
     if (btnOk) {
-      btnOk.textContent = 'OK';
-      btnOk.style.backgroundColor = '';
+      btnOk.textContent = 'OK?';
+      btnOk.style.backgroundColor = '#dc3545';
       btnOk.style.color = '';
     }
   }
@@ -446,7 +451,7 @@ function validerLigne(bouton) {
     if (quantite > quantiteDisponible) {
       const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK';
+      bouton.textContent = 'OK?';
       bouton.style.backgroundColor = '';
       bouton.style.color = '';
       return false;
@@ -461,7 +466,7 @@ function validerLigne(bouton) {
     if (quantite > totalDispo) {
       const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK';
+      bouton.textContent = 'OK?';
       bouton.style.backgroundColor = '';
       bouton.style.color = '';
       return false;
@@ -469,8 +474,8 @@ function validerLigne(bouton) {
   }
   
   // Changer le bouton OK pour indiquer la validation
-  bouton.textContent = '\u2713';
-  bouton.style.backgroundColor = '#28a745';
+  bouton.textContent = 'OK?';
+  bouton.style.backgroundColor = '#dc3545';
   bouton.style.color = 'white';
   
   return true;

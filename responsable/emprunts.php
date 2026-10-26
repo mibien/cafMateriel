@@ -242,7 +242,7 @@ include __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
           </select>
           <select name="materiel_id[]" class="select-materiel" style="flex:3;" onchange="verifierCoherence(this)">
-            <option value="">-- OU un article precis --</option>
+            <option value="">-- Selectionner un article precis --</option>
             <?php foreach ($materielDispo as $m): ?>
               <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>">
                 <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '') . ' [dispo: ' . $m['quantite_disponible'] . ']') ?>

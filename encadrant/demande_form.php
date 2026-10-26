@@ -181,13 +181,13 @@ include __DIR__ . '/../includes/header.php';
             $quantite = $quantitesPost[$i] ?? 1;
       ?>
         <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-          <select name="type_id[]" class="select-type" style="flex:2;">
+          <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this)">
             <option value="">-- Type de materiel --</option>
             <?php foreach ($types as $t): ?>
               <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>><?php echo htmlspecialchars($t['libelle']); ?></option>
             <?php endforeach; ?>
           </select>
-          <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+          <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this)">
             <option value="">-- OU un article precis --</option>
             <option value="peu_importe" <?= $materielId === 'peu_importe' ? 'selected' : '' ?>>Peu importe</option>
             <?php foreach ($materielDispo as $m): ?>
@@ -208,13 +208,13 @@ include __DIR__ . '/../includes/header.php';
         $firstLineQuantite = 1;
       ?>
       <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-        <select name="type_id[]" class="select-type" style="flex:2;">
+        <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this)">
           <option value="">-- Type de materiel --</option>
           <?php foreach ($types as $t): ?>
             <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['libelle']) ?></option>
           <?php endforeach; ?>
         </select>
-        <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+        <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this)">
           <option value="">-- OU un article precis --</option>
           <option value="peu_importe">Peu importe</option>
           <?php foreach ($materielDispo as $m): ?>

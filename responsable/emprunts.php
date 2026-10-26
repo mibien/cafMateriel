@@ -362,7 +362,7 @@ function filtrerMateriel(selectType) {
   const selectedValue = selectMateriel.value;
   
   // Vider les options sauf la premiere
-  selectMateriel.innerHTML = '<option value="">-- OU un article precis --</option>';
+  selectMateriel.innerHTML = '<option value="">-- Selectionner un article precis --</option>';
   
   if (typeId && materielParType[typeId]) {
     materielParType[typeId].forEach(function(m) {

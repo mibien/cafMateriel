@@ -233,8 +233,8 @@ include __DIR__ . '/../includes/header.php';
                 </option>
               <?php endforeach; ?>
             </select>
-            <input type="number" name="quantite[]" min="1" value="<?= (int)$l['quantite'] ?>" style="flex:1;">
-            <button type="button" class="btn vert btn-ok" onclick="validerLigne(this)">OK</button>
+            <input type="number" name="quantite[]" min="1" value="<?= (int)$l['quantite'] ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+            <button type="button" class="btn btn-ok" onclick="validerLigne(this)">Valider l'article</button>
             <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
           </div>
         <?php endforeach; ?>
@@ -254,8 +254,8 @@ include __DIR__ . '/../includes/header.php';
               </option>
             <?php endforeach; ?>
           </select>
-          <input type="number" name="quantite[]" min="1" value="1" style="flex:1;">
-          <button type="button" class="btn vert btn-ok" onclick="validerLigne(this)">OK</button>
+          <input type="number" name="quantite[]" min="1" value="1" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+          <button type="button" class="btn btn-ok" onclick="validerLigne(this)">Valider l'article</button>
           <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
         </div>
       <?php endif; ?>
@@ -287,6 +287,13 @@ document.addEventListener('DOMContentLoaded', function() {
             verifierCoherence(this);
         });
     });
+    
+    // Attacher l'evenement onchange aux inputs quantite
+    document.querySelectorAll('input[name="quantite[]"]').forEach(function(input) {
+        input.addEventListener('change', function() {
+            reinitialiserBoutonOK(this);
+        });
+    });
 });
 
 function ajouterLigne() {
@@ -301,9 +308,11 @@ function ajouterLigne() {
   // Reinitialiser le bouton OK
   const btnOk = clone.querySelector('.btn-ok');
   if (btnOk) {
-    btnOk.textContent = 'OK?';
+    btnOk.textContent = 'Valider l\'article';
     btnOk.style.backgroundColor = '#dc3545';
-    btnOk.style.color = '';
+    btnOk.style.color = 'white';
+    btnOk.classList.remove('vert');
+    btnOk.classList.add('rouge');
   }
   
   // Attacher les evenements aux nouveaux elements
@@ -318,6 +327,13 @@ function ajouterLigne() {
   if (newSelectMateriel) {
     newSelectMateriel.addEventListener('change', function() {
       verifierCoherence(this);
+    });
+  }
+  
+  const newInputQuantite = clone.querySelector('input[name="quantite[]"]');
+  if (newInputQuantite) {
+    newInputQuantite.addEventListener('change', function() {
+      reinitialiserBoutonOK(this);
     });
   }
   
@@ -350,12 +366,26 @@ function supprimerLigne(bouton) {
     // Reinitialiser le bouton OK
     const btnOk = ligne.querySelector('.btn-ok');
     if (btnOk) {
-      btnOk.textContent = 'OK?';
+      btnOk.textContent = 'Valider l\'article';
       btnOk.style.backgroundColor = '#dc3545';
-      btnOk.style.color = '';
+      btnOk.style.color = 'white';
+      btnOk.classList.remove('vert');
+      btnOk.classList.add('rouge');
     }
   }
   masquerErreur();
+}
+
+function reinitialiserBoutonOK(input) {
+  const ligne = input.closest('.ligne-materiel');
+  const btnOk = ligne.querySelector('.btn-ok');
+  if (btnOk && btnOk.textContent !== 'Valider l\'article') {
+    btnOk.textContent = 'Valider l\'article';
+    btnOk.style.backgroundColor = '#dc3545';
+    btnOk.style.color = 'white';
+    btnOk.classList.remove('vert');
+    btnOk.classList.add('rouge');
+  }
 }
 
 function filtrerMateriel(selectType) {
@@ -451,9 +481,11 @@ function validerLigne(bouton) {
     if (quantite > quantiteDisponible) {
       const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK?';
-      bouton.style.backgroundColor = '';
-      bouton.style.color = '';
+      bouton.textContent = 'Valider l\'article';
+      bouton.style.backgroundColor = '#dc3545';
+      bouton.style.color = 'white';
+      bouton.classList.remove('vert');
+      bouton.classList.add('rouge');
       return false;
     }
   } else if (selectType.value) {
@@ -466,17 +498,21 @@ function validerLigne(bouton) {
     if (quantite > totalDispo) {
       const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
-      bouton.textContent = 'OK?';
-      bouton.style.backgroundColor = '';
-      bouton.style.color = '';
+      bouton.textContent = 'Valider l\'article';
+      bouton.style.backgroundColor = '#dc3545';
+      bouton.style.color = 'white';
+      bouton.classList.remove('vert');
+      bouton.classList.add('rouge');
       return false;
     }
   }
   
-  // Changer le bouton OK pour indiquer la validation
-  bouton.textContent = 'OK?';
-  bouton.style.backgroundColor = '#dc3545';
+  // Changer le bouton pour indiquer la validation
+  bouton.textContent = 'Article valide';
+  bouton.style.backgroundColor = '#28a745';
   bouton.style.color = 'white';
+  bouton.classList.remove('rouge');
+  bouton.classList.add('vert');
   
   return true;
 }

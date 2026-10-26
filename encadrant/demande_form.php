@@ -197,8 +197,8 @@ include __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
           </select>
           <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;">
-          <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
-          <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
+          <button type="button" class="btn btn-ok rouge">Valider l'article?</button>
+          <button type="button" class="btn secondaire">Supprimer</button>
         </div>
       <?php endforeach;
       else:
@@ -224,12 +224,12 @@ include __DIR__ . '/../includes/header.php';
           <?php endforeach; ?>
         </select>
         <input type="number" name="quantite[]" min="1" value="1" style="flex:1;">
-        <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
-        <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
+        <button type="button" class="btn btn-ok rouge">Valider l'article?</button>
+        <button type="button" class="btn secondaire">Supprimer</button>
       </div>
       <?php endif; ?>
     </div>
-    <button type="button" class="btn secondaire" onclick="ajouterLigne()">+ Ajouter un article</button>
+    <button type="button" class="btn secondaire">+ Ajouter un article</button>
 
     <div style="margin-top:1.5rem;">
       <button type="submit" class="btn">Envoyer la demande</button>
@@ -266,6 +266,25 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('change', function() {
             reinitialiserBoutonOK(this);
         });
+    });
+    
+    // Attacher les evenements aux boutons existants
+    document.querySelectorAll('.btn-ok').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            validerLigne(this);
+        });
+    });
+    
+    document.querySelectorAll('.btn.secondaire').forEach(function(btn) {
+        if (btn.textContent.includes('Supprimer')) {
+            btn.addEventListener('click', function() {
+                supprimerLigne(this);
+            });
+        } else if (btn.textContent.includes('Ajouter')) {
+            btn.addEventListener('click', function() {
+                ajouterLigne();
+            });
+        }
     });
 });
 

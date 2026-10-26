@@ -7,35 +7,42 @@ $user = current_user();
 $message = null;
 $erreur = null;
 
+// ---------- Récupérer les données POST pour préserver la sélection en cas d'erreur ----------
+$encadrantIdPost = (int)($_POST['encadrant_id'] ?? 0);
+$activitePost = trim($_POST['activite'] ?? '');
+$dateRetourPrevuePost = $_POST['date_retour_prevue'] ?? null;
+$demandeIdPost = $_POST['demande_id'] !== '' ? (int)$_POST['demande_id'] : null;
+$materielIdsPost = $_POST['materiel_id'] ?? [];
+$quantitesPost = $_POST['quantite'] ?? [];
+$typeIdsPost = $_POST['type_id'] ?? [];
+
 // ---------- Traitement du formulaire (creation de l'emprunt) ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    $encadrantId = (int)$_POST['encadrant_id'];
-    $activite = trim($_POST['activite'] ?? '') ?: null;
-    $dateRetourPrevue = $_POST['date_retour_prevue'] ?: null;
-    $demandeId = $_POST['demande_id'] !== '' ? (int)$_POST['demande_id'] : null;
-    $materielIds = $_POST['materiel_id'] ?? [];
-    $quantites = $_POST['quantite'] ?? [];
+    $encadrantId = $encadrantIdPost;
+    $activite = $activitePost;
+    $dateRetourPrevue = $dateRetourPrevuePost;
+    $demandeId = $demandeIdPost;
+    $materielIds = $materielIdsPost;
+    $quantites = $quantitesPost;
+    $typeIds = $typeIdsPost;
 
     if (!$encadrantId || empty($materielIds)) {
         $erreur = "Merci de choisir un encadrant et au moins un article.";
     } else {
-        try {
-            $pdo->beginTransaction();
+        $erreurs = [];
+        
+        // Verifier toutes les lignes avant de commencer la transaction
+        foreach ($materielIds as $i => $materielId) {
+            $materielId = (int)$materielId;
+            $qte = max(1, (int)($quantites[$i] ?? 1));
+            $typeId = isset($typeIds[$i]) ? (int)$typeIds[$i] : null;
+            
+            if (!$materielId && !$typeId) continue;
 
-            $stmt = $pdo->prepare("
-                INSERT INTO emprunts (demande_id, encadrant_id, responsable_id, activite, date_sortie, date_retour_prevue, statut)
-                VALUES (?, ?, ?, ?, NOW(), ?, 'en_cours')
-            ");
-            $stmt->execute([$demandeId, $encadrantId, $user['id'], $activite, $dateRetourPrevue]);
-            $empruntId = $pdo->lastInsertId();
-
-            foreach ($materielIds as $i => $materielId) {
-                $materielId = (int)$materielId;
-                $qte = max(1, (int)($quantites[$i] ?? 1));
-                if (!$materielId) continue;
-
-                $stmt = $pdo->prepare("SELECT quantite_disponible FROM materiel WHERE id = ? FOR UPDATE");
+            // Si c'est un article precis
+            if ($materielId) {
+                $stmt = $pdo->prepare("SELECT quantite_disponible FROM materiel WHERE id = ?");
                 $stmt->execute([$materielId]);
                 $dispo = (int)$stmt->fetchColumn();
 
@@ -45,36 +52,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtNom->execute([$materielId]);
                     $art = $stmtNom->fetch();
                     $nom = $art ? trim(($art['marque'] ?? '') . ' ' . ($art['modele'] ?? '') . ($art['numero_serie'] ? ' (' . $art['numero_serie'] . ')' : '')) : "article #$materielId";
-                    throw new Exception("Quantite insuffisante pour l'article {$nom} (disponible: $dispo, demande: $qte).");
+                    $erreurs[] = "Quantite insuffisante pour l'article {$nom} (disponible: $dispo, demande: $qte).";
+                }
+            } 
+            // Si c'est un type (sans article precis)
+            elseif ($typeId) {
+                $stmt = $pdo->prepare("
+                    SELECT COALESCE(SUM(quantite_disponible), 0) AS total_dispo
+                    FROM materiel
+                    WHERE type_id = ? AND statut = 'disponible'
+                ");
+                $stmt->execute([$typeId]);
+                $totalDispo = (int)$stmt->fetchColumn();
+                
+                if ($totalDispo < $qte) {
+                    $stmtNom = $pdo->prepare("SELECT libelle FROM types_epi WHERE id = ?");
+                    $stmtNom->execute([$typeId]);
+                    $type = $stmtNom->fetch();
+                    $libelle = $type['libelle'] ?? "type #$typeId";
+                    $erreurs[] = "Quantite insuffisante pour le type {$libelle} (disponible: $totalDispo, demande: $qte).";
+                }
+            }
+        }
+        
+        // Si des erreurs ont ete detectees, les afficher et arreter
+        if (!empty($erreurs)) {
+            $erreur = "Erreur(s) :
+" . implode("
+", $erreurs);
+        } else {
+            try {
+                $pdo->beginTransaction();
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO emprunts (demande_id, encadrant_id, responsable_id, activite, date_sortie, date_retour_prevue, statut)
+                    VALUES (?, ?, ?, ?, NOW(), ?, 'en_cours')
+                ");
+                $stmt->execute([$demandeId, $encadrantId, $user['id'], $activite, $dateRetourPrevue]);
+                $empruntId = $pdo->lastInsertId();
+
+                foreach ($materielIds as $i => $materielId) {
+                    $materielId = (int)$materielId;
+                    $qte = max(1, (int)($quantites[$i] ?? 1));
+                    if (!$materielId) continue;
+
+                    $stmt = $pdo->prepare("SELECT quantite_disponible FROM materiel WHERE id = ? FOR UPDATE");
+                    $stmt->execute([$materielId]);
+                    $dispo = (int)$stmt->fetchColumn();
+
+                    $pdo->prepare("INSERT INTO emprunts_lignes (emprunt_id, materiel_id, quantite) VALUES (?, ?, ?)")
+                        ->execute([$empruntId, $materielId, $qte]);
+
+                    $nouvelleQte = $dispo - $qte;
+                    $nouveauStatut = $nouvelleQte === 0 ? 'emprunte' : 'disponible';
+                    $pdo->prepare("UPDATE materiel SET quantite_disponible = ?, statut = ? WHERE id = ?")
+                        ->execute([$nouvelleQte, $nouveauStatut, $materielId]);
                 }
 
-                $pdo->prepare("INSERT INTO emprunts_lignes (emprunt_id, materiel_id, quantite) VALUES (?, ?, ?)")
-                    ->execute([$empruntId, $materielId, $qte]);
+                // Si l'emprunt provient d'une demande, on la marque traitee (approuvee) si ce n'est pas deja fait
+                if ($demandeId) {
+                    $pdo->prepare("
+                        UPDATE demandes_emprunt
+                        SET statut = 'approuvee', traitee_par = COALESCE(traitee_par, ?), date_traitement = COALESCE(date_traitement, NOW())
+                        WHERE id = ?
+                    ")->execute([$user['id'], $demandeId]);
+                }
 
-                $nouvelleQte = $dispo - $qte;
-                $nouveauStatut = $nouvelleQte === 0 ? 'emprunte' : 'disponible';
-                $pdo->prepare("UPDATE materiel SET quantite_disponible = ?, statut = ? WHERE id = ?")
-                    ->execute([$nouvelleQte, $nouveauStatut, $materielId]);
+                $pdo->commit();
+                $message = "Emprunt enregistre avec succes.";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $erreur = "Erreur : " . $e->getMessage();
             }
-
-            // Si l'emprunt provient d'une demande, on la marque traitee (approuvee) si ce n'est pas deja fait
-            if ($demandeId) {
-                $pdo->prepare("
-                    UPDATE demandes_emprunt
-                    SET statut = 'approuvee', traitee_par = COALESCE(traitee_par, ?), date_traitement = COALESCE(date_traitement, NOW())
-                    WHERE id = ?
-                ")->execute([$user['id'], $demandeId]);
-            }
-
-            $pdo->commit();
-            $message = "Emprunt enregistre avec succes.";
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            $erreur = "Erreur : " . $e->getMessage();
         }
     }
 }
-
 // ---------- Demandes en attente ou approuvees, pas encore transformees en emprunt ----------
 $demandes = $pdo->query("
     SELECT d.*, u.prenom, u.nom, u.email
@@ -190,7 +242,7 @@ include __DIR__ . '/../includes/header.php';
       <select name="encadrant_id" id="encadrant_id" required>
         <option value="">-- Choisir --</option>
         <?php foreach ($encadrants as $e): ?>
-          <option value="<?= $e['id'] ?>" <?= $demandeSelectionnee && (int)$demandeSelectionnee['encadrant_id'] === (int)$e['id'] ? 'selected' : '' ?>>
+          <option value="<?= $e['id'] ?>" <?= ($demandeSelectionnee && (int)$demandeSelectionnee['encadrant_id'] === (int)$e['id']) || ($erreur && $encadrantIdPost === (int)$e['id']) ? 'selected' : '' ?>>
             <?= htmlspecialchars($e['prenom'] . ' ' . $e['nom'] . ' (' . $e['email'] . ')') ?>
           </option>
         <?php endforeach; ?>
@@ -199,23 +251,57 @@ include __DIR__ . '/../includes/header.php';
 
     <div class="form-group">
       <label for="activite">Activite / sortie concernee</label>
-      <input type="text" name="activite" id="activite" value="<?= htmlspecialchars($demandeSelectionnee['activite'] ?? '') ?>">
+      <input type="text" name="activite" id="activite" value="<?= htmlspecialchars($erreur ? $activitePost : ($demandeSelectionnee['activite'] ?? '')) ?>">
     </div>
 
     <div class="form-group">
       <label for="date_retour_prevue">Date de retour prevue</label>
-      <input type="date" name="date_retour_prevue" id="date_retour_prevue" value="<?= htmlspecialchars($demandeSelectionnee['date_fin_souhaitee'] ?? '') ?>">
+      <input type="date" name="date_retour_prevue" id="date_retour_prevue" value="<?= htmlspecialchars($erreur ? $dateRetourPrevuePost : ($demandeSelectionnee['date_fin_souhaitee'] ?? '')) ?>">
     </div>
 
     <h2>Materiel a sortir</h2>
     <div id="lignes-materiel">
-      <?php if (!empty($lignesPrefill)): ?>
-        <?php foreach ($lignesPrefill as $l): ?>
+      <?php 
+        // Si erreur, utiliser les valeurs POST pour préserver la sélection
+        if ($erreur && !empty($materielIdsPost)):
+          foreach ($materielIdsPost as $i => $materielId):
+            $typeId = $typeIdsPost[$i] ?? null;
+            $quantite = $quantitesPost[$i] ?? 1;
+            $isValid = false; // Par défaut non validé après erreur
+      ?>
           <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
             <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this)">
               <option value="">-- Type de materiel --</option>
               <?php foreach ($types as $t): ?>
-                <option value="<?= $t['id'] ?>" <?= (int)$l['type_id'] === (int)$t['id'] ? 'selected' : '' ?>>
+                <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($t['libelle']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <select name="materiel_id[]" class="select-materiel" style="flex:3;" onchange="verifierCoherence(this)">
+              <option value="">-- Selectionner un article precis --</option>
+              <?php foreach ($materielDispo as $m): ?>
+                <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>" <?= (int)$materielId === (int)$m['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '') . ' [dispo: ' . $m['quantite_disponible'] . ']') ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+            <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
+            <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
+          </div>
+        <?php endforeach;
+        elseif (!empty($lignesPrefill)):
+          foreach ($lignesPrefill as $l):
+            $typeId = $l['type_id'] ?? null;
+            $materielId = $l['materiel_id'] ?? null;
+            $quantite = $l['quantite'] ?? 1;
+      ?>
+          <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
+            <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this)">
+              <option value="">-- Type de materiel --</option>
+              <?php foreach ($types as $t): ?>
+                <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>>
                   <?= htmlspecialchars($t['libelle']) ?>
                 </option>
               <?php endforeach; ?>
@@ -224,21 +310,22 @@ include __DIR__ . '/../includes/header.php';
               <option value="">-- Selectionner un article precis --</option>
               <?php foreach ($materielDispo as $m): ?>
                 <?php
-                  $preselectionne = $l['materiel_id']
-                      ? ((int)$m['id'] === (int)$l['materiel_id'])
-                      : ((int)$m['type_id'] === (int)$l['type_id']);
+                  $preselectionne = $materielId
+                      ? ((int)$m['id'] === (int)$materielId)
+                      : ((int)$m['type_id'] === (int)$typeId);
                 ?>
                 <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>" <?= $preselectionne ? 'selected' : '' ?>>
                   <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '') . ' [dispo: ' . $m['quantite_disponible'] . ']') ?>
                 </option>
               <?php endforeach; ?>
             </select>
-            <input type="number" name="quantite[]" min="1" value="<?= (int)$l['quantite'] ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
-            <button type="button" class="btn btn-ok" onclick="validerLigne(this)">Valider l'article</button>
+            <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+            <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
             <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
           </div>
-        <?php endforeach; ?>
-      <?php else: ?>
+        <?php endforeach;
+        else:
+      ?>
         <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
           <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this)">
             <option value="">-- Type de materiel --</option>
@@ -255,7 +342,7 @@ include __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
           </select>
           <input type="number" name="quantite[]" min="1" value="1" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
-          <button type="button" class="btn btn-ok" onclick="validerLigne(this)">Valider l'article</button>
+          <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article?</button>
           <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
         </div>
       <?php endif; ?>
@@ -308,7 +395,7 @@ function ajouterLigne() {
   // Reinitialiser le bouton OK
   const btnOk = clone.querySelector('.btn-ok');
   if (btnOk) {
-    btnOk.textContent = 'Valider l\'article';
+    btnOk.textContent = 'Valider l\'article?';
     btnOk.style.backgroundColor = '#dc3545';
     btnOk.style.color = 'white';
     btnOk.classList.remove('vert');
@@ -366,7 +453,7 @@ function supprimerLigne(bouton) {
     // Reinitialiser le bouton OK
     const btnOk = ligne.querySelector('.btn-ok');
     if (btnOk) {
-      btnOk.textContent = 'Valider l\'article';
+      btnOk.textContent = 'Valider l\'article?';
       btnOk.style.backgroundColor = '#dc3545';
       btnOk.style.color = 'white';
       btnOk.classList.remove('vert');
@@ -379,8 +466,8 @@ function supprimerLigne(bouton) {
 function reinitialiserBoutonOK(input) {
   const ligne = input.closest('.ligne-materiel');
   const btnOk = ligne.querySelector('.btn-ok');
-  if (btnOk && btnOk.textContent !== 'Valider l\'article') {
-    btnOk.textContent = 'Valider l\'article';
+  if (btnOk && btnOk.textContent !== 'Valider l\'article?') {
+    btnOk.textContent = 'Valider l\'article?';
     btnOk.style.backgroundColor = '#dc3545';
     btnOk.style.color = 'white';
     btnOk.classList.remove('vert');
@@ -396,8 +483,11 @@ function filtrerMateriel(selectType) {
   // Conserver la valeur selectionnee si elle existe
   const selectedValue = selectMateriel.value;
   
+  // Changer le texte de la premiere option en fonction du contexte
+  const defaultText = typeId ? '-- Selectionner un article precis --' : '-- OU un article precis --';
+  
   // Vider les options sauf la premiere
-  selectMateriel.innerHTML = '<option value="">-- Selectionner un article precis --</option>';
+  selectMateriel.innerHTML = '<option value="">' + defaultText + '</option>';
   
   if (typeId && materielParType[typeId]) {
     materielParType[typeId].forEach(function(m) {
@@ -429,6 +519,8 @@ function filtrerMateriel(selectType) {
     if (selectedValue) {
       selectMateriel.value = selectedValue;
     }
+    // Mettre a jour le texte de la premiere option
+    selectMateriel.querySelector('option[value=""]').textContent = '-- OU un article precis --';
   }
 }
 
@@ -481,7 +573,7 @@ function validerLigne(bouton) {
     if (quantite > quantiteDisponible) {
       const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
-      bouton.textContent = 'Valider l\'article';
+      bouton.textContent = 'Valider l\'article?';
       bouton.style.backgroundColor = '#dc3545';
       bouton.style.color = 'white';
       bouton.classList.remove('vert');
@@ -498,7 +590,7 @@ function validerLigne(bouton) {
     if (quantite > totalDispo) {
       const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
-      bouton.textContent = 'Valider l\'article';
+      bouton.textContent = 'Valider l\'article?';
       bouton.style.backgroundColor = '#dc3545';
       bouton.style.color = 'white';
       bouton.classList.remove('vert');

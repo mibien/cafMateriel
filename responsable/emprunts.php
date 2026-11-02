@@ -193,25 +193,79 @@ foreach ($materielDispo as $m) {
 }
 
 // Si une demande selectionnee contient des types sans article precis, eclater en une ligne par article disponible
-if ($demandeIdGet && !empty($lignesPrefill)) {
+// en tenant compte de la quantite demandee et des reservations existantes
+if ($demandeIdGet && !empty($lignesPrefill) && $demandeSelectionnee) {
     $nouvellesLignes = [];
+    $dateDebutDemande = $demandeSelectionnee['date_debut_souhaitee'];
+    $dateFinDemande = $demandeSelectionnee['date_fin_souhaitee'];
+    
     foreach ($lignesPrefill as $l) {
         if ($l['materiel_id'] === null && $l['type_id']) {
+            // Quantite demandee pour ce type
+            $quantiteDemandee = (int)($l['quantite'] ?? 1);
+            
             // Trouver tous les articles disponibles de ce type
             $articlesDuType = $materielParType[$l['type_id']] ?? [];
-            if (!empty($articlesDuType)) {
-                foreach ($articlesDuType as $article) {
-                    $nouvellesLignes[] = [
-                        'type_id' => $l['type_id'],
-                        'materiel_id' => $article['id'],
-                        'quantite' => 1, // Le responsable devra ajuster la quantite
-                        'type_libelle' => $article['type_libelle'],
-                        'marque' => $article['marque'],
-                        'modele' => $article['modele'],
-                        'numero_serie' => $article['numero_serie'],
-                        'quantite_disponible' => $article['quantite_disponible']
-                    ];
+            
+            // Filtrer les articles deja reserves pour ces dates dans d'autres demandes validees
+            $articlesDisponibles = [];
+            foreach ($articlesDuType as $article) {
+                if ($article['quantite_disponible'] <= 0) {
+                    continue;
                 }
+                
+                // Verifier si cet article est deja reserve dans une autre demande validee pour les memes dates
+                $stmtReserve = $pdo->prepare("
+                    SELECT COUNT(*) 
+                    FROM demandes_emprunt_lignes dl
+                    JOIN demandes_emprunt d ON d.id = dl.demande_id
+                    WHERE dl.materiel_id = ? 
+                      AND d.statut IN ('approuvee', 'en_attente')
+                      AND d.id != ?
+                      AND (
+                          (d.date_debut_souhaitee <= ? AND d.date_fin_souhaitee >= ?) OR
+                          (d.date_debut_souhaitee <= ? AND d.date_fin_souhaitee >= ?) OR
+                          (d.date_debut_souhaitee >= ? AND d.date_fin_souhaitee <= ?)
+                      )
+                ");
+                $stmtReserve->execute([
+                    $article['id'],
+                    $demandeIdGet,
+                    $dateFinDemande, $dateDebutDemande,
+                    $dateDebutDemande, $dateFinDemande,
+                    $dateDebutDemande, $dateFinDemande
+                ]);
+                $dejaReserve = (int)$stmtReserve->fetchColumn() > 0;
+                
+                if (!$dejaReserve) {
+                    $articlesDisponibles[] = $article;
+                }
+            }
+            
+            // Generer uniquement le nombre de lignes necessaire pour la quantite demandee
+            // en tenant compte de la quantite disponible par article
+            $quantiteRestante = $quantiteDemandee;
+            foreach ($articlesDisponibles as $article) {
+                if ($quantiteRestante <= 0) break;
+                
+                // On peut prendre jusqu'a la quantite disponible de cet article
+                $quantiteAPrendre = min($article['quantite_disponible'], $quantiteRestante);
+                $nouvellesLignes[] = [
+                    'type_id' => $l['type_id'],
+                    'materiel_id' => $article['id'],
+                    'quantite' => $quantiteAPrendre,
+                    'type_libelle' => $article['type_libelle'],
+                    'marque' => $article['marque'],
+                    'modele' => $article['modele'],
+                    'numero_serie' => $article['numero_serie'],
+                    'quantite_disponible' => $article['quantite_disponible']
+                ];
+                $quantiteRestante -= $quantiteAPrendre;
+            }
+            
+            // Si on n'a pas assez d'articles disponibles, ajouter un message d'avertissement
+            if ($quantiteRestante > 0) {
+                $erreur = ($erreur ?? '') . "\nAttention : Seule une partie de la demande pour le type '{$l['type_libelle']}' peut etre satisfaite (demande: $quantiteDemandee, disponible: " . ($quantiteDemandee - $quantiteRestante) . ").";
             }
         } else {
             $nouvellesLignes[] = $l;

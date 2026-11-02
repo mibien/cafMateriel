@@ -247,6 +247,10 @@ document.addEventListener('DOMContentLoaded', function() {
         select.addEventListener('change', function() {
             filtrerMateriel(this);
         });
+        // Filtrer immediatement si un type est deja selectionne
+        if (select.value) {
+            filtrerMateriel(select);
+        }
     });
     
     document.querySelectorAll('.select-materiel').forEach(function(select) {

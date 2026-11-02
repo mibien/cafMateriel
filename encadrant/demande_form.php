@@ -20,9 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activite = trim($_POST['activite'] ?? '');
     $dateDebut = $_POST['date_debut'] ?? '';
     $dateFin = $_POST['date_fin'] ?? '';
-    $typeIds = $_POST['type_id'] ?? [];
-    $materielIds = $_POST['materiel_id'] ?? [];
-    $quantites = $_POST['quantite'] ?? [];
+    $typeIdsPost = $_POST['type_id'] ?? [];
+    $materielIdsPost = $_POST['materiel_id'] ?? [];
+    $quantitesPost = $_POST['quantite'] ?? [];
+    
+    $typeIds = $typeIdsPost;
+    $materielIds = $materielIdsPost;
+    $quantites = $quantitesPost;
 
     // Construit la liste des lignes valides (au moins un type OU un materiel par ligne)
     $lignes = [];
@@ -82,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($erreursDispo)) {
-            $erreur = implode(' ', $erreursDispo);
+            $erreur = implode('\n', $erreursDispo);
         } else {
         try {
             $pdo->beginTransaction();
@@ -157,22 +161,50 @@ include __DIR__ . '/../includes/header.php';
 
     <div class="form-group">
       <label for="activite">Activite / sortie concernee</label>
-      <input type="text" name="activite" id="activite" placeholder="Ex: Initiation escalade - falaise de ...">
+      <input type="text" name="activite" id="activite" placeholder="Ex: Initiation escalade - falaise de ..." value="<?= htmlspecialchars($erreur ? $activite : '') ?>">
     </div>
 
     <div style="display:flex; gap:1rem; flex-wrap:wrap;">
       <div class="form-group" style="flex:1; min-width:200px;">
         <label for="date_debut">Date de debut souhaitee (debut emprunt)</label>
-        <input type="date" name="date_debut" id="date_debut" required>
+        <input type="date" name="date_debut" id="date_debut" required value="<?= htmlspecialchars($erreur ? $dateDebut : '') ?>">
       </div>
       <div class="form-group" style="flex:1; min-width:200px;">
         <label for="date_fin">Date de fin souhaitee (retour prevu)</label>
-        <input type="date" name="date_fin" id="date_fin" required>
+        <input type="date" name="date_fin" id="date_fin" required value="<?= htmlspecialchars($erreur ? $dateFin : '') ?>">
       </div>
     </div>
 
     <h2>Materiel demande</h2>
     <div id="lignes-materiel">
+      <?php if ($erreur && !empty($typeIdsPost)):
+          foreach ($typeIdsPost as $i => $typeId):
+            $materielId = $materielIdsPost[$i] ?? null;
+            $quantite = $quantitesPost[$i] ?? 1;
+      ?>
+        <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
+          <select name="type_id[]" class="select-type" style="flex:2;">
+            <option value="">-- Type de materiel --</option>
+            <?php foreach ($types as $t): ?>
+              <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>><?php echo htmlspecialchars($t['libelle']); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+            <option value="">-- OU un article precis --</option>
+            <option value="peu_importe" <?= $materielId === 'peu_importe' ? 'selected' : '' ?>>Peu importe</option>
+            <?php foreach ($materielDispo as $m): ?>
+              <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>" <?= (int)$materielId === (int)$m['id'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '')) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+          <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article</button>
+          <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
+        </div>
+      <?php endforeach;
+      else:
+      ?>
       <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
         <select name="type_id[]" class="select-type" style="flex:2;">
           <option value="">-- Type de materiel --</option>
@@ -193,6 +225,7 @@ include __DIR__ . '/../includes/header.php';
         <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article</button>
         <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
       </div>
+      <?php endif; ?>
     </div>
     <button type="button" class="btn secondaire" onclick="ajouterLigne()">+ Ajouter un article</button>
 

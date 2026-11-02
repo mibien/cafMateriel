@@ -163,33 +163,6 @@ if ($demandeIdGet) {
         if ((int)$d['id'] === $demandeIdGet) { $demandeSelectionnee = $d; break; }
     }
     $lignesPrefill = $lignesParDemande[$demandeIdGet] ?? [];
-    
-    // Si une demande contient un type sans article precis (materiel_id NULL),
-    // on doit eclater cette demande en une ligne par article disponible de ce type
-    $nouvellesLignes = [];
-    foreach ($lignesPrefill as $l) {
-        if ($l['materiel_id'] === null && $l['type_id']) {
-            // Trouver tous les articles disponibles de ce type
-            $articlesDuType = $materielParType[$l['type_id']] ?? [];
-            if (!empty($articlesDuType)) {
-                foreach ($articlesDuType as $article) {
-                    $nouvellesLignes[] = [
-                        'type_id' => $l['type_id'],
-                        'materiel_id' => $article['id'],
-                        'quantite' => 1, // Le responsable devra ajuster la quantite
-                        'type_libelle' => $article['type_libelle'],
-                        'marque' => $article['marque'],
-                        'modele' => $article['modele'],
-                        'numero_serie' => $article['numero_serie'],
-                        'quantite_disponible' => $article['quantite_disponible']
-                    ];
-                }
-            }
-        } else {
-            $nouvellesLignes[] = $l;
-        }
-    }
-    $lignesPrefill = $nouvellesLignes;
 }
 
 $encadrants = $pdo->query("SELECT id, prenom, nom, email FROM utilisateurs WHERE actif = 1 ORDER BY prenom, nom")->fetchAll();
@@ -217,6 +190,34 @@ foreach ($materielDispo as $m) {
     ];
     $materielDispoClean[] = $cleanM;
     $materielParType[(int)($m['type_id'] ?? 0)][] = $cleanM;
+}
+
+// Si une demande selectionnee contient des types sans article precis, eclater en une ligne par article disponible
+if ($demandeIdGet && !empty($lignesPrefill)) {
+    $nouvellesLignes = [];
+    foreach ($lignesPrefill as $l) {
+        if ($l['materiel_id'] === null && $l['type_id']) {
+            // Trouver tous les articles disponibles de ce type
+            $articlesDuType = $materielParType[$l['type_id']] ?? [];
+            if (!empty($articlesDuType)) {
+                foreach ($articlesDuType as $article) {
+                    $nouvellesLignes[] = [
+                        'type_id' => $l['type_id'],
+                        'materiel_id' => $article['id'],
+                        'quantite' => 1, // Le responsable devra ajuster la quantite
+                        'type_libelle' => $article['type_libelle'],
+                        'marque' => $article['marque'],
+                        'modele' => $article['modele'],
+                        'numero_serie' => $article['numero_serie'],
+                        'quantite_disponible' => $article['quantite_disponible']
+                    ];
+                }
+            }
+        } else {
+            $nouvellesLignes[] = $l;
+        }
+    }
+    $lignesPrefill = $nouvellesLignes;
 }
 
 // Encoder les donnees pour JavaScript

@@ -215,6 +215,7 @@ if ($demandeIdGet && !empty($lignesPrefill) && $demandeSelectionnee) {
                 }
                 
                 // Verifier si cet article est deja reserve dans une autre demande validee pour les memes dates
+                // Chevauchement : d.date_debut_souhaitee <= dateFinDemande AND d.date_fin_souhaitee >= dateDebutDemande
                 $stmtReserve = $pdo->prepare("
                     SELECT COUNT(*) 
                     FROM demandes_emprunt_lignes dl
@@ -222,18 +223,14 @@ if ($demandeIdGet && !empty($lignesPrefill) && $demandeSelectionnee) {
                     WHERE dl.materiel_id = ? 
                       AND d.statut IN ('approuvee', 'en_attente')
                       AND d.id != ?
-                      AND (
-                          (d.date_debut_souhaitee <= ? AND d.date_fin_souhaitee >= ?) OR
-                          (d.date_debut_souhaitee <= ? AND d.date_fin_souhaitee >= ?) OR
-                          (d.date_debut_souhaitee >= ? AND d.date_fin_souhaitee <= ?)
-                      )
+                      AND d.date_debut_souhaitee <= ? 
+                      AND d.date_fin_souhaitee >= ?
                 ");
                 $stmtReserve->execute([
                     $article['id'],
                     $demandeIdGet,
-                    $dateFinDemande, $dateDebutDemande,
-                    $dateDebutDemande, $dateFinDemande,
-                    $dateDebutDemande, $dateFinDemande
+                    $dateFinDemande,
+                    $dateDebutDemande
                 ]);
                 $dejaReserve = (int)$stmtReserve->fetchColumn() > 0;
                 

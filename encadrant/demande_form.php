@@ -1,4 +1,12 @@
 <?php
+// ACTIVER POUR LE DEBOGAGE
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php_errors.log');
+
+// Le reste du code...
 require_once __DIR__ . '/../auth.php';
 require_min_role('encadrant');
 
@@ -21,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nbLignes = max(count($typeIds), count($materielIds), count($quantites));
     for ($i = 0; $i < $nbLignes; $i++) {
         $t = isset($typeIds[$i]) && $typeIds[$i] !== '' ? (int)$typeIds[$i] : null;
-        $m = isset($materielIds[$i]) && $materielIds[$i] !== '' ? (int)$materielIds[$i] : null;
+        $m = isset($materielIds[$i]) && $materielIds[$i] !== '' && $materielIds[$i] !== 'peu_importe' ? (int)$materielIds[$i] : null;
         $q = max(1, (int)($quantites[$i] ?? 1));
         if ($t || $m) {
             $lignes[] = ['type_id' => $t, 'materiel_id' => $m, 'quantite' => $q];
@@ -106,11 +114,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $types = $pdo->query("SELECT id, libelle FROM types_epi WHERE actif = 1 ORDER BY libelle")->fetchAll();
 $materielDispo = $pdo->query("
-    SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle
+    SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle, t.id AS type_id, m.quantite_disponible
     FROM materiel m JOIN types_epi t ON t.id = m.type_id
     WHERE m.statut = 'disponible' AND m.quantite_disponible > 0
     ORDER BY t.libelle, m.marque
 ")->fetchAll();
+
+// Organiser le materiel par type pour le filtrage
+$materielParType = [];
+$materielDispoClean = [];
+foreach ($materielDispo as $m) {
+    // Nettoyer les valeurs pour JSON
+    $cleanM = [
+        'id' => (int)($m['id'] ?? 0),
+        'marque' => $m['marque'] ?? '',
+        'modele' => $m['modele'] ?? '',
+        'numero_serie' => $m['numero_serie'] ?? '',
+        'type_libelle' => $m['type_libelle'] ?? '',
+        'type_id' => (int)($m['type_id'] ?? 0),
+        'quantite_disponible' => (int)($m['quantite_disponible'] ?? 0)
+    ];
+    $materielDispoClean[] = $cleanM;
+    $materielParType[(int)($m['type_id'] ?? 0)][] = $cleanM;
+}
+
+// Encoder les donnees pour JavaScript
+$materielParTypeJson = json_encode($materielParType, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+$allMaterielJson = json_encode($materielDispoClean, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
 $titre_page = 'Demander un emprunt';
 include __DIR__ . '/../includes/header.php';
@@ -144,21 +174,23 @@ include __DIR__ . '/../includes/header.php';
     <h2>Materiel demande</h2>
     <div id="lignes-materiel">
       <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-        <select name="type_id[]" style="flex:2;">
+        <select name="type_id[]" class="select-type" style="flex:2;">
           <option value="">-- Type de materiel --</option>
           <?php foreach ($types as $t): ?>
             <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['libelle']) ?></option>
           <?php endforeach; ?>
         </select>
-        <select name="materiel_id[]" style="flex:2;">
+        <select name="materiel_id[]" class="select-materiel" style="flex:2;">
           <option value="">-- OU un article precis --</option>
+          <option value="peu_importe">Peu importe</option>
           <?php foreach ($materielDispo as $m): ?>
-            <option value="<?= $m['id'] ?>">
+            <option value="<?= $m['id'] ?>" data-type-id="<?= $m['type_id'] ?>" data-quantite-disponible="<?= $m['quantite_disponible'] ?>">
               <?= htmlspecialchars($m['type_libelle'] . ' - ' . ($m['marque'] ?? '') . ' ' . ($m['modele'] ?? '') . ($m['numero_serie'] ? ' (' . $m['numero_serie'] . ')' : '')) ?>
             </option>
           <?php endforeach; ?>
         </select>
         <input type="number" name="quantite[]" min="1" value="1" style="flex:1;">
+        <button type="button" class="btn vert btn-ok" onclick="validerLigne(this)">OK</button>
         <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
       </div>
     </div>
@@ -171,25 +203,218 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+// Donnees pour le filtrage
+const materielParType = <?php echo $materielParTypeJson; ?>;
+const allMateriel = <?php echo $allMaterielJson; ?>;
+
+// Attacher les evenements aux elements existants
+document.addEventListener('DOMContentLoaded', function() {
+    // Attacher les evenements aux select existants
+    document.querySelectorAll('.select-type').forEach(function(select) {
+        select.addEventListener('change', function() {
+            filtrerMateriel(this);
+        });
+    });
+    
+    document.querySelectorAll('.select-materiel').forEach(function(select) {
+        select.addEventListener('change', function() {
+            verifierCoherence(this);
+        });
+    });
+});
+
 function ajouterLigne() {
   const conteneur = document.getElementById('lignes-materiel');
   const premiere = conteneur.querySelector('.ligne-materiel');
   const clone = premiere.cloneNode(true);
+  
+  // Reinitialiser les valeurs
   clone.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
   clone.querySelector('input').value = 1;
+  
+  // Reinitialiser le bouton OK
+  const btnOk = clone.querySelector('.btn-ok');
+  if (btnOk) {
+    btnOk.textContent = 'OK';
+    btnOk.style.backgroundColor = '';
+    btnOk.style.color = '';
+  }
+  
+  // Attacher les evenements aux nouveaux elements
+  const newSelectType = clone.querySelector('.select-type');
+  if (newSelectType) {
+    newSelectType.addEventListener('change', function() {
+      filtrerMateriel(this);
+    });
+  }
+  
+  const newSelectMateriel = clone.querySelector('.select-materiel');
+  if (newSelectMateriel) {
+    newSelectMateriel.addEventListener('change', function() {
+      verifierCoherence(this);
+    });
+  }
+  
+  const newBtnOk = clone.querySelector('.btn-ok');
+  if (newBtnOk) {
+    newBtnOk.addEventListener('click', function() {
+      validerLigne(this);
+    });
+  }
+  
+  const newBtnSupprimer = clone.querySelector('.btn.secondaire');
+  if (newBtnSupprimer && newBtnSupprimer.textContent.includes('Supprimer')) {
+    newBtnSupprimer.addEventListener('click', function() {
+      supprimerLigne(this);
+    });
+  }
+  
   conteneur.appendChild(clone);
   masquerErreur();
 }
+
 function supprimerLigne(bouton) {
   const conteneur = document.getElementById('lignes-materiel');
   if (conteneur.querySelectorAll('.ligne-materiel').length > 1) {
     bouton.closest('.ligne-materiel').remove();
   } else {
-    bouton.closest('.ligne-materiel').querySelectorAll('select').forEach(s => s.selectedIndex = 0);
-    bouton.closest('.ligne-materiel').querySelector('input').value = 1;
+    const ligne = bouton.closest('.ligne-materiel');
+    ligne.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+    ligne.querySelector('input').value = 1;
+    // Reinitialiser le bouton OK
+    const btnOk = ligne.querySelector('.btn-ok');
+    if (btnOk) {
+      btnOk.textContent = 'OK';
+      btnOk.style.backgroundColor = '';
+      btnOk.style.color = '';
+    }
   }
   masquerErreur();
 }
+
+function filtrerMateriel(selectType) {
+  const ligne = selectType.closest('.ligne-materiel');
+  const selectMateriel = ligne.querySelector('.select-materiel');
+  const typeId = selectType.value;
+  
+  // Conserver la valeur selectionnee si elle existe
+  const selectedValue = selectMateriel.value;
+  
+  // Vider les options sauf les deux premieres
+  selectMateriel.innerHTML = '<option value="">-- OU un article precis --</option><option value="peu_importe">Peu importe</option>';
+  
+  if (typeId && materielParType[typeId]) {
+    materielParType[typeId].forEach(function(m) {
+      const option = document.createElement('option');
+      option.value = m.id;
+      option.textContent = m.type_libelle + ' - ' + (m.marque || '') + ' ' + (m.modele || '') + (m.numero_serie ? ' (' + m.numero_serie + ')' : '');
+      option.dataset.typeId = m.type_id;
+      option.dataset.quantiteDisponible = m.quantite_disponible;
+      selectMateriel.appendChild(option);
+    });
+    // Reselectionner si c'etait un article du type selectionne
+    if (selectedValue && selectedValue !== 'peu_importe') {
+      const found = materielParType[typeId].some(function(m) { return m.id == selectedValue; });
+      if (found) {
+        selectMateriel.value = selectedValue;
+      }
+    }
+  } else {
+    // Si aucun type selectionne, afficher tout le materiel
+    allMateriel.forEach(function(m) {
+      const option = document.createElement('option');
+      option.value = m.id;
+      option.textContent = m.type_libelle + ' - ' + (m.marque || '') + ' ' + (m.modele || '') + (m.numero_serie ? ' (' + m.numero_serie + ')' : '');
+      option.dataset.typeId = m.type_id;
+      option.dataset.quantiteDisponible = m.quantite_disponible;
+      selectMateriel.appendChild(option);
+    });
+    // Reselectionner si c'etait un article
+    if (selectedValue && selectedValue !== 'peu_importe') {
+      selectMateriel.value = selectedValue;
+    }
+  }
+}
+
+function verifierCoherence(selectMateriel) {
+  const ligne = selectMateriel.closest('.ligne-materiel');
+  const selectType = ligne.querySelector('.select-type');
+  
+  if (selectMateriel.value && selectMateriel.value !== 'peu_importe' && selectType.value) {
+    const selectedOption = selectMateriel.options[selectMateriel.selectedIndex];
+    const materielTypeId = selectedOption ? selectedOption.dataset.typeId : null;
+    
+    if (materielTypeId && parseInt(materielTypeId) !== parseInt(selectType.value)) {
+      alert('L\'article selectionne ne correspond pas au type de materiel selectionne. Veuillez d\'abord selectionner le bon type.');
+      selectMateriel.value = '';
+    }
+  }
+}
+
+function validerLigne(bouton) {
+  const ligne = bouton.closest('.ligne-materiel');
+  const selectType = ligne.querySelector('.select-type');
+  const selectMateriel = ligne.querySelector('.select-materiel');
+  const inputQuantite = ligne.querySelector('input[name="quantite[]"]');
+  
+  // Verifier qu'au moins un element est selectionne
+  if (!selectType.value && !selectMateriel.value) {
+    alert('Veuillez selectionner un type de materiel ou un article precis.');
+    return false;
+  }
+  
+  // Si un article precis est selectionne, verifier qu'il correspond au type selectionne
+  if (selectType.value && selectMateriel.value && selectMateriel.value !== 'peu_importe') {
+    const selectedOption = selectMateriel.options[selectMateriel.selectedIndex];
+    const materielTypeId = selectedOption ? selectedOption.dataset.typeId : null;
+    
+    if (materielTypeId && parseInt(materielTypeId) !== parseInt(selectType.value)) {
+      alert('L\'article selectionne ne correspond pas au type de materiel selectionne.');
+      return false;
+    }
+  }
+  
+  // Si une quantite est specifiee, verifier la disponibilite
+  const quantite = inputQuantite ? parseInt(inputQuantite.value) || 1 : 1;
+  
+  if (selectMateriel.value && selectMateriel.value !== 'peu_importe') {
+    // Verifier la quantite disponible pour l'article selectionne
+    const selectedOption = selectMateriel.options[selectMateriel.selectedIndex];
+    const quantiteDisponible = selectedOption ? parseInt(selectedOption.dataset.quantiteDisponible || 0) : 0;
+    
+    if (quantite > quantiteDisponible) {
+      const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
+      alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
+      bouton.textContent = 'OK';
+      bouton.style.backgroundColor = '';
+      bouton.style.color = '';
+      return false;
+    }
+  } else if (selectType.value) {
+    // Pour un type, on ne peut pas verifier la quantite sans requete AJAX
+    // On va utiliser les donnees prechargees
+    const typeId = selectType.value;
+    const materielsDuType = materielParType[typeId] || [];
+    const totalDispo = materielsDuType.reduce((sum, m) => sum + (m.quantite_disponible || 0), 0);
+    
+    if (quantite > totalDispo) {
+      const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
+      alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
+      bouton.textContent = 'OK';
+      bouton.style.backgroundColor = '';
+      bouton.style.color = '';
+      return false;
+    }
+  }
+  
+  // Changer le bouton OK pour indiquer la validation
+  bouton.textContent = '\u2713';
+  bouton.style.backgroundColor = '#28a745';
+  bouton.style.color = 'white';
+  
+  return true;
+}
+
 function masquerErreur() {
   const alerte = document.getElementById('alerte-erreur');
   if (alerte) { alerte.style.display = 'none'; }

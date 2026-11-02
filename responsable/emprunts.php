@@ -265,7 +265,8 @@ if ($demandeIdGet && !empty($lignesPrefill) && $demandeSelectionnee) {
             
             // Si on n'a pas assez d'articles disponibles, ajouter un message d'avertissement
             if ($quantiteRestante > 0) {
-                $erreur = ($erreur ?? '') . "\nAttention : Seule une partie de la demande pour le type '{$l['type_libelle']}' peut etre satisfaite (demande: $quantiteDemandee, disponible: " . ($quantiteDemandee - $quantiteRestante) . ").";
+                $messageAvertissement = "Attention : Seule une partie de la demande pour le type '{$l['type_libelle']}' peut etre satisfaite (demande: $quantiteDemandee, disponible: " . ($quantiteDemandee - $quantiteRestante) . ").";
+                $erreur = $erreur ? $erreur . "\n" . $messageAvertissement : $messageAvertissement;
             }
         } else {
             $nouvellesLignes[] = $l;

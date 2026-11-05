@@ -627,13 +627,13 @@ function validerLigne(bouton) {
   const selectMateriel = ligne.querySelector('.select-materiel');
   const inputQuantite = ligne.querySelector('input[name="quantite[]"]');
   
-  // Verifier qu'au moins un element est selectionne
-  if (!selectType.value && !selectMateriel.value) {
-    alert('Veuillez selectionner un type de materiel ou un article precis.');
+  // Verifier qu'un article precis est selectionne (obligatoire dans emprunts.php)
+  if (!selectMateriel.value || selectMateriel.value === '') {
+    alert('Veuillez selectionner un article precis.');
     return false;
   }
   
-  // Si un article precis est selectionne, verifier qu'il correspond au type selectionne
+  // Si un type est aussi selectionne, verifier qu'il correspond a l'article
   if (selectType.value && selectMateriel.value && selectMateriel.value !== '') {
     const selectedOption = selectMateriel.options[selectMateriel.selectedIndex];
     const materielTypeId = selectedOption ? selectedOption.dataset.typeId : null;
@@ -655,23 +655,6 @@ function validerLigne(bouton) {
     if (quantite > quantiteDisponible) {
       const nom = selectedOption ? selectedOption.textContent : 'article inconnu';
       alert('Erreur: Quantite demandee superieure a la quantite disponible pour ' + nom + ' (disponible: ' + quantiteDisponible + ', demande: ' + quantite + ').');
-      bouton.textContent = 'Valider l\'article?';
-      bouton.style.backgroundColor = '#dc3545';
-      bouton.style.color = 'white';
-      bouton.classList.remove('vert');
-      bouton.classList.add('rouge');
-      return false;
-    }
-  } else if (selectType.value) {
-    // Pour un type, on ne peut pas verifier la quantite sans requete AJAX
-    // On va utiliser les donnees prechargees
-    const typeId = selectType.value;
-    const materielsDuType = materielParType[typeId] || [];
-    const totalDispo = materielsDuType.reduce((sum, m) => sum + (m.quantite_disponible || 0), 0);
-    
-    if (quantite > totalDispo) {
-      const libelle = selectType.options[selectType.selectedIndex]?.textContent || 'type inconnu';
-      alert('Erreur: Quantite demandee superieure a la quantite disponible pour le type ' + libelle + ' (disponible: ' + totalDispo + ', demande: ' + quantite + ').');
       bouton.textContent = 'Valider l\'article?';
       bouton.style.backgroundColor = '#dc3545';
       bouton.style.color = 'white';

@@ -88,13 +88,22 @@ $alertes['piles_dva_mises'] = $pdo->query(
     WHERE t.code = 'DVA' AND m.piles = 'mises'"
 )->fetchColumn();
 
-// Recuperer la liste des DVA avec piles mises pour l'encart deroulant
-$dvaAvecPiles = $pdo->query(
-    "SELECT m.id, m.marque, m.modele, m.numero_serie
+// Recuperer TOUS les DVA pour l'encart deroulant (piles mises ou retirees)
+$tousLesDVA = $pdo->query(
+    "SELECT m.id, m.marque, m.modele, m.numero_serie, m.piles
     FROM materiel m
     JOIN types_epi t ON t.id = m.type_id
-    WHERE t.code = 'DVA' AND m.piles = 'mises'
-    ORDER BY m.marque, m.modele, m.numero_serie"
+    WHERE t.code = 'DVA'
+    ORDER BY m.piles DESC, m.marque, m.modele, m.numero_serie"
+)->fetchAll();
+
+// Recuperer la liste des articles hors service pour l'encart deroulant
+$materielHorsService = $pdo->query(
+    "SELECT m.id, m.marque, m.modele, m.numero_serie, t.libelle AS type_libelle
+    FROM materiel m
+    JOIN types_epi t ON t.id = m.type_id
+    WHERE m.statut = 'hors_service'
+    ORDER BY t.libelle, m.marque, m.modele, m.numero_serie"
 )->fetchAll();
 
 
@@ -186,18 +195,16 @@ include __DIR__ . '/../includes/header.php';
   <?php endif; ?>
   <?php if ($alertes['materiel_hors_service'] > 0): ?>
     <p class="alert err"><?= (int)$alertes['materiel_hors_service'] ?> article(s) hors service.</p>
-  <?php endif; ?>
-  <?php if ($alertes['piles_dva_mises'] > 0): ?>
-    <p class="alert warn"><?= (int)$alertes['piles_dva_mises'] ?> DVA ont encore leurs piles mises.</p>
     <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
       <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
-        Voir la liste des DVA avec piles mises
+        Voir la liste des articles hors service
       </summary>
       <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
-        <?php if (!empty($dvaAvecPiles)): ?>
+        <?php if (!empty($materielHorsService)): ?>
           <table style="width: 100%; font-size: 0.92rem;">
             <thead>
               <tr>
+                <th>Type</th>
                 <th>Marque</th>
                 <th>Modèle</th>
                 <th>N° serie</th>
@@ -205,11 +212,66 @@ include __DIR__ . '/../includes/header.php';
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($dvaAvecPiles as $dva): ?>
+              <?php foreach ($materielHorsService as $item): ?>
+                <tr>
+                  <td><?= htmlspecialchars($item['type_libelle'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['marque'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['modele'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($item['numero_serie'] ?? '-') ?></td>
+                  <td style="text-align: right;">
+                    <a href="/materiel/fiche.php?id=<?= $item['id'] ?>" 
+                       class="btn" 
+                       style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                       onclick="event.stopPropagation();">
+                      Voir fiche
+                    </a>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        <?php endif; ?>
+      </div>
+    </details>
+  <?php endif; ?>
+    <details class="card" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+      <summary style="cursor: pointer; font-weight: 600; color: var(--bleu-fonce);">
+        Voir la liste des DVA avec piles mises ou retirées
+      </summary>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--bordure);">
+        <?php if (!empty($tousLesDVA)): ?>
+          <table style="width: 100%; font-size: 0.92rem;">
+            <thead>
+              <tr>
+                <th>Marque</th>
+                <th>Modèle</th>
+                <th>N° serie</th>
+                <th>État piles</th>
+                <th style="text-align: right;">Changer état</th>
+                <th style="text-align: right;">Voir fiche</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($tousLesDVA as $dva): ?>
                 <tr>
                   <td><?= htmlspecialchars($dva['marque'] ?? '-') ?></td>
                   <td><?= htmlspecialchars($dva['modele'] ?? '-') ?></td>
                   <td><?= htmlspecialchars($dva['numero_serie'] ?? '-') ?></td>
+                  <td>
+                    <span style="font-weight: 500;">
+                      <?= htmlspecialchars($dva['piles'] ?? '-') ?>
+                    </span>
+                  </td>
+                  <td style="text-align: right;">
+                    <button class="btn-piles btn-piles-<?= htmlspecialchars($dva['piles'] ?? 'retirées') ?>"
+                            data-materiel-id="<?= $dva['id'] ?>"
+                            data-etat-actuel="<?= htmlspecialchars($dva['piles'] ?? 'retirées') ?>"
+                            onclick="event.stopPropagation(); togglePiles(this);"
+                            style="padding: 0.3rem 0.6rem; font-size: 0.85rem;"
+                            title="Basculer entre piles mises et retirées">
+                      <?= htmlspecialchars($dva['piles'] ?? 'retirées') ?>
+                    </button>
+                  </td>
                   <td style="text-align: right;">
                     <a href="/materiel/fiche.php?id=<?= $dva['id'] ?>" 
                        class="btn" 
@@ -225,7 +287,6 @@ include __DIR__ . '/../includes/header.php';
         <?php endif; ?>
       </div>
     </details>
-  <?php endif; ?>
   <?php if ($alertes['revisions_proches'] == 0 && $alertes['materiel_en_revision'] == 0 && $alertes['materiel_perdu'] == 0 && $alertes['materiel_hors_service'] == 0 && $alertes['piles_dva_mises'] == 0): ?>
     <p>Aucune alerte en cours.</p>
   <?php endif; ?>

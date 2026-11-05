@@ -183,13 +183,13 @@ include __DIR__ . '/../includes/header.php';
             $quantite = $quantitesPost[$i] ?? 1;
       ?>
         <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-          <select name="type_id[]" class="select-type" style="flex:2;">
+          <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
             <option value="">-- Type de materiel --</option>
             <?php foreach ($types as $t): ?>
               <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>><?php echo htmlspecialchars($t['libelle']); ?></option>
             <?php endforeach; ?>
           </select>
-          <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+          <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
             <option value="">-- OU un article precis --</option>
             <option value="peu_importe" <?= $materielId === 'peu_importe' ? 'selected' : '' ?>>Peu importe</option>
             <?php foreach ($materielDispo as $m): ?>
@@ -206,13 +206,13 @@ include __DIR__ . '/../includes/header.php';
       else:
       ?>
       <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-        <select name="type_id[]" class="select-type" style="flex:2;">
+        <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
           <option value="">-- Type de materiel --</option>
           <?php foreach ($types as $t): ?>
             <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['libelle']) ?></option>
           <?php endforeach; ?>
         </select>
-        <select name="materiel_id[]" class="select-materiel" style="flex:2;">
+        <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
           <option value="">-- OU un article precis --</option>
           <option value="peu_importe">Peu importe</option>
           <?php foreach ($materielDispo as $m): ?>
@@ -284,6 +284,7 @@ function ajouterLigne() {
   if (newSelectType) {
     newSelectType.addEventListener('change', function() {
       filtrerMateriel(this);
+      reinitialiserBoutonOK(this);
     });
   }
   
@@ -291,6 +292,7 @@ function ajouterLigne() {
   if (newSelectMateriel) {
     newSelectMateriel.addEventListener('change', function() {
       verifierCoherence(this);
+      reinitialiserBoutonOK(this);
     });
   }
   
@@ -482,6 +484,23 @@ function masquerErreur() {
 // Masque aussi le message des qu'on modifie n'importe quel champ du formulaire
 document.getElementById('form-demande').addEventListener('input', masquerErreur);
 document.getElementById('form-demande').addEventListener('change', masquerErreur);
+
+// Verifier que tous les articles sont valides avant soumission
+document.getElementById('form-demande').addEventListener('submit', function(e) {
+  const boutonsOk = document.querySelectorAll('#lignes-materiel .btn-ok');
+  let tousValides = true;
+  
+  boutonsOk.forEach(function(btn) {
+    if (btn.textContent !== 'Article valide') {
+      tousValides = false;
+    }
+  });
+  
+  if (!tousValides) {
+    e.preventDefault();
+    alert('Merci de valider tous les articles avant d\'envoyer la demande.');
+  }
+});
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -182,14 +182,14 @@ include __DIR__ . '/../includes/header.php';
             $materielId = $materielIdsPost[$i] ?? null;
             $quantite = $quantitesPost[$i] ?? 1;
       ?>
-        <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-          <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
+        <div class="ligne-materiel">
+          <select name="type_id[]" class="select-type" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
             <option value="">-- Type de materiel --</option>
             <?php foreach ($types as $t): ?>
               <option value="<?= $t['id'] ?>" <?= (int)$typeId === (int)$t['id'] ? 'selected' : '' ?>><?php echo htmlspecialchars($t['libelle']); ?></option>
             <?php endforeach; ?>
           </select>
-          <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
+          <select name="materiel_id[]" class="select-materiel" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
             <option value="">-- OU un article precis --</option>
             <option value="peu_importe" <?= $materielId === 'peu_importe' ? 'selected' : '' ?>>Peu importe</option>
             <?php foreach ($materielDispo as $m): ?>
@@ -198,21 +198,21 @@ include __DIR__ . '/../includes/header.php';
               </option>
             <?php endforeach; ?>
           </select>
-          <input type="number" name="quantite[]" min="1" value="<?= (int)$quantite ?>" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+          <input type="number" name="quantite[]" class="input-quantite" min="1" value="<?= (int)$quantite ?>" onchange="reinitialiserBoutonOK(this)">
           <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article</button>
           <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
         </div>
       <?php endforeach;
       else:
       ?>
-      <div class="ligne-materiel" style="display:flex; gap:0.6rem; margin-bottom:0.6rem; align-items:center;">
-        <select name="type_id[]" class="select-type" style="flex:2;" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
+      <div class="ligne-materiel">
+        <select name="type_id[]" class="select-type" onchange="filtrerMateriel(this); reinitialiserBoutonOK(this)">
           <option value="">-- Type de materiel --</option>
           <?php foreach ($types as $t): ?>
             <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['libelle']) ?></option>
           <?php endforeach; ?>
         </select>
-        <select name="materiel_id[]" class="select-materiel" style="flex:2;" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
+        <select name="materiel_id[]" class="select-materiel" onchange="verifierCoherence(this); reinitialiserBoutonOK(this)">
           <option value="">-- OU un article precis --</option>
           <option value="peu_importe">Peu importe</option>
           <?php foreach ($materielDispo as $m): ?>
@@ -221,7 +221,7 @@ include __DIR__ . '/../includes/header.php';
             </option>
           <?php endforeach; ?>
         </select>
-        <input type="number" name="quantite[]" min="1" value="1" style="flex:1;" onchange="reinitialiserBoutonOK(this)">
+        <input type="number" name="quantite[]" class="input-quantite" min="1" value="1" onchange="reinitialiserBoutonOK(this)">
         <button type="button" class="btn btn-ok rouge" onclick="validerLigne(this)">Valider l'article</button>
         <button type="button" class="btn secondaire" onclick="supprimerLigne(this)">Supprimer</button>
       </div>
